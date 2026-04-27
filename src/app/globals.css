@@ -1,8 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
+  /* 앱 페이지 배경(연회색) — 카드는 흰색으로 대비 */
+  --background: #f3f4f6;
   --foreground: #171717;
+  --color-background-primary: var(--background);
 }
 
 @theme inline {
@@ -16,11 +18,26 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --color-background-primary: var(--background);
   }
 }
+
+/* 로그인·기타 페이지는 위 변수를 따름. 대시보드는 app/dashboard/page + DashboardClient 래퍼에서
+   backgroundColor #f3f4f6 를 인라인으로 고정해 OS 다크 모드여도 캔버스가 검게 번지지 않게 함. */
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* 시스템 다크 모드: body 글자색은 밝지만 카드·입력은 밝은 배경이라
+   Safari 등에서 입력 글자가 밝은색으로만 그려져 안 보이는 문제 방지 */
+@media (prefers-color-scheme: dark) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]),
+  textarea,
+  select {
+    color: #111827;
+    color-scheme: light;
+  }
 }
