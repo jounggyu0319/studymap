@@ -27,17 +27,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
-        {children}
-        <a
-          href="https://open.kakao.com/o/sQ8zznsi"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="fixed bottom-4 right-4 z-[100] text-xs text-gray-400 transition-colors hover:text-gray-600"
-        >
-          🐛 오류 제보
-        </a>
-      </body>
+      <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
 }

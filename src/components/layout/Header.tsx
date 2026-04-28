@@ -21,6 +21,14 @@ export default function Header({ user }: { user: User }) {
         <span className="text-sm text-gray-600">
           {user.user_metadata?.full_name ?? user.email}
         </span>
+        <a
+          href="https://open.kakao.com/o/sQ8zznsi"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-gray-400 hover:text-gray-600 mr-3"
+        >
+          🐛 오류 제보
+        </a>
         <button
           onClick={handleLogout}
           className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
