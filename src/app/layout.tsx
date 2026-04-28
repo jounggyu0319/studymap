@@ -15,6 +15,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "스터디맵",
   description: "할 일을 자동으로 정리해드립니다",
+  manifest: "/manifest.json",
+  themeColor: "#111827",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "스터디맵",
+  },
   openGraph: {
     title: "스터디맵",
     description: "할 일을 자동으로 정리해드립니다",
