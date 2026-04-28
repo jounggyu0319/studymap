@@ -15,6 +15,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "스터디맵",
   description: "할 일을 자동으로 정리해드립니다",
+  openGraph: {
+    title: "스터디맵",
+    description: "할 일을 자동으로 정리해드립니다",
+    url: "https://studymap-kohl.vercel.app",
+    siteName: "스터디맵",
+  },
 };
 
 export default function RootLayout({
