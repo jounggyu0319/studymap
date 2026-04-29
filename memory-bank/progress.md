@@ -77,17 +77,30 @@
 - **DashboardClient** — 폴더 탭(전체 제외) 호버 시 ✕, 확인 후 삭제 및 로컬 상태 동기화
 
 ## 전역 피드백 ✅
-- **`src/app/layout.tsx`** — 우하단 고정 **「🐛 오류 제보」** → 카카오 오픈채팅(새 탭), 모바일·데스크톱 공통
+- **`src/app/layout.tsx`** — 헤더 우측 **「🐛 오류 제보」** 링크 → 카카오 오픈채팅(새 탭), 모바일·데스크톱 공통
+
+## Vercel 배포 ✅ (2026-04-29)
+- GitHub `jounggyu0319/studymap` → Vercel 자동 배포 연결
+- 프로덕션 URL: **`https://studymap-kohl.vercel.app`**
+- 환경변수 3종 설정 완료 (SUPABASE_URL / ANON_KEY / ANTHROPIC_API_KEY)
+- Supabase Redirect URL + Site URL → `https://studymap-kohl.vercel.app` 추가
+- Google Cloud Console OAuth 승인 URI + JavaScript 원본 추가
+
+## PWA 설정 ✅ (2026-04-29)
+- `public/manifest.json` — name·start_url(`/dashboard`)·standalone·theme_color
+- `layout.tsx` metadata — manifest / themeColor / appleWebApp / openGraph
+- 앱 아이콘: **노트+지도핀** 디자인 (`icon-192.png`, `icon-512.png`) — Python PIL 생성
+- Safari 공유 → 홈 화면에 추가로 앱처럼 설치 가능
 
 ## 저장소
-- GitHub: **`jounggyu0319/studymap`** (`main`), 원격 푸시 사용 중
+- GitHub: **`jounggyu0319/studymap`** (`main`), SSH 키 인증, Vercel 자동 재배포
 
 ## 알려진 이슈 / 다음 할 일
 - [ ] **syllabus 추출 실사용 테스트 미완료** ← 다양한 강의계획서로 추출 품질 검증 필요 (핵심 미완성 항목)
 - [ ] goal 추출 실사용 테스트
 - [ ] Problem Sets 추출 프롬프트 지속 다듬기
 - [ ] 캘린더 뷰 (마감일 월간 달력)
-- [ ] Vercel 배포
+- [ ] 베타 테스트 피드백 수집 및 반영
 
 ## 해결된 주요 버그
 - pdf-parse v2→v1.1.1 다운그레이드
