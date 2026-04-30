@@ -38,6 +38,7 @@ export default function DashboardClient({
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
 
   const chat = useChatProgress({
+    activeCardId: selectedCardId,
     onSubtaskProgress: (subtaskId, progress, isDone) => {
       setSubtasks(prev =>
         prev.map(st =>

@@ -18,6 +18,10 @@ const PLACEHOLDERS = [
 export interface ChatMessage {
   role: 'user' | 'ai'
   text: string
+  /** DB 반영이 일어난 assistant 턴 — API history carry-forward용 */
+  progressApplied?: boolean
+  targetCardId?: string | null
+  targetSubtaskId?: string | null
 }
 
 export interface UseChatProgressOptions {
@@ -25,6 +29,8 @@ export interface UseChatProgressOptions {
   onSubtaskRemoved?: (subtaskId: string) => void
   /** 모바일 하단 바 높이·스크롤 여백 동기화 (데스크톱에서는 생략 가능) */
   onExpandedChange?: (expanded: boolean) => void
+  /** 상세 패널이 열린 카드 id — 없으면 생략 */
+  activeCardId?: string | null
 }
 
 export interface ChatProgressApi {
@@ -39,10 +45,23 @@ export interface ChatProgressApi {
   scrollRef: RefObject<HTMLDivElement | null>
 }
 
+function serializeHistoryForApi(messages: ChatMessage[]): unknown[] {
+  return messages.map(m => {
+    const row: Record<string, unknown> = { role: m.role, text: m.text }
+    if (m.role === 'ai' && m.progressApplied) {
+      row.progressApplied = true
+      if (m.targetCardId !== undefined) row.targetCardId = m.targetCardId
+      if (m.targetSubtaskId !== undefined) row.targetSubtaskId = m.targetSubtaskId
+    }
+    return row
+  })
+}
+
 export function useChatProgress({
   onSubtaskProgress,
   onSubtaskRemoved,
   onExpandedChange,
+  activeCardId = null,
 }: UseChatProgressOptions): ChatProgressApi {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
@@ -79,13 +98,16 @@ export function useChatProgress({
     setIsLoading(true)
 
     try {
+      const body: Record<string, unknown> = {
+        message: text,
+        history: serializeHistoryForApi(historySnapshot),
+      }
+      if (activeCardId) body.activeCardId = activeCardId
+
       const res = await fetch('/api/chat-progress', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: text,
-          history: historySnapshot,
-        }),
+        body: JSON.stringify(body),
       })
       const data = await res.json()
 
@@ -94,7 +116,14 @@ export function useChatProgress({
         return
       }
 
-      setMessages(prev => [...prev, { role: 'ai', text: data.message }])
+      const dbApplied = Boolean(data.progressApplied) || Boolean(data.subtaskRemoved)
+      const aiPayload: ChatMessage = { role: 'ai', text: data.message }
+      if (dbApplied && (data.cardId != null || data.subtaskId != null)) {
+        aiPayload.progressApplied = true
+        if (data.cardId != null) aiPayload.targetCardId = data.cardId
+        if (data.subtaskId != null) aiPayload.targetSubtaskId = data.subtaskId
+      }
+      setMessages(prev => [...prev, aiPayload])
 
       if (data.progressApplied && data.subtaskId != null && typeof data.progress === 'number') {
         onSubtaskProgress(data.subtaskId, data.progress, data.progress >= 100)
@@ -108,7 +137,7 @@ export function useChatProgress({
       setIsLoading(false)
       inputRef.current?.focus()
     }
-  }, [input, isLoading, messages, onSubtaskProgress, onSubtaskRemoved])
+  }, [input, isLoading, messages, onSubtaskProgress, onSubtaskRemoved, activeCardId])
 
   return {
     messages,
