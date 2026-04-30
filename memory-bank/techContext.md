@@ -23,7 +23,7 @@ Storage:  files 버킷 (비공개) + RLS (SELECT/INSERT)
 | `/api/cards` | GET/POST | 카드 목록 조회 / 카드+서브태스크 생성 |
 | `/api/cards/[id]` | PATCH/DELETE | 날짜 수정 / 카드 삭제 |
 | `/api/cards/[id]/subtasks/[subtaskId]` | PATCH | 서브태스크 완료 토글 |
-| `/api/chat-progress` | POST | 자연어 → 서브태스크 자동 완료 |
+| `/api/chat-progress` | POST | Haiku JSON → 서브태스크 진행률 PATCH / 삭제 DELETE (`activeCardId`, carry-forward `history`) |
 
 ## 핵심 패턴 및 주의사항
 

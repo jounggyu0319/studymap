@@ -13,11 +13,14 @@
 - 카드 삭제 버튼 (DELETE API)
 - (Feature 7 이후) 서브태스크는 **진행률 %** + 채팅으로 갱신
 
-### Feature 3 — main-chat-progress ✅ (Feature 7·후속에서 확장)
+### Feature 3 — main-chat-progress ✅ (Feature 7·후속에서 확장, 2026-04 추론 Haiku 이전)
 - 대시보드: **768px+** 우측 사이드바, 미만은 하단 고정 채팅 + FAB
-- `/api/chat-progress` → 후보 매칭 + **progressUpdate**(완료 100 / 부분 % / 취소 0 / 모호하면 되묻기)
-- **서브태스크 삭제:** `action: remove_subtask` + 히스토리 전달, 짧은 긍정(맞아 등) 시 이전 발화 병합(`effectiveMessage`), DB `DELETE` 후 `subtaskRemoved`
-- 카드 2+ 동점·낮은 conf → 과목 되묻기 유지
+- `/api/chat-progress` → **Claude Haiku 시스템 프롬프트만**으로 카드/서브태스크 매칭·진행률·삭제 의도 판단; TS는 **병합 메시지(`buildEffectiveUserMessage`) + JSON 파싱 + DB 실행**만
+- **요청 본문:** `activeCardId`(상세 패널 열린 카드), `history`에 assistant 턴 `progressApplied` / `targetCardId` / `targetSubtaskId`(DB 반영된 턴만) → carry-forward
+- **후보:** `candidates` JSON(`id`, `subject`, `type`, `subtasks[]`) 프롬프트 주입
+- **분기:** `confidence < 0.6` → DB 없음; `progressUpdate` → PATCH; `remove_subtask` → DELETE; `askClarification` / `none` → 메시지만
+- 짧은 긍정(맞아 등) 시 이전 user 발화 병합은 **TS 유지**
+- **서브태스크 삭제·진행 반영** 성공 시 응답에 `progressApplied: true`(삭제 턴도 포함) + 클라이언트 히스토리 메타 동기화
 
 ### Feature 4 — weight-algorithm-fix ✅
 - 서브태스크 텍스트에서 숫자 범위 파싱 → 분량 비례 가중치
@@ -85,6 +88,20 @@
 - 환경변수 3종 설정 완료 (SUPABASE_URL / ANON_KEY / ANTHROPIC_API_KEY)
 - Supabase Redirect URL + Site URL → `https://studymap-kohl.vercel.app` 추가
 - Google Cloud Console OAuth 승인 URI + JavaScript 원본 추가
+
+## 대시보드 UI 2안 (`feat: 대시보드 UI 2안 적용`) ✅
+- **파일:** `DashboardClient.tsx`, `CardTimeline.tsx`, `CardItem.tsx`, `PriorityRecommendation.tsx`(compact)
+- **메인 컬럼:** 고정 헤더 블록 → 압축 **우선순위 스트립** → 폴더 필터 행 유지 → **시간 탭**(D-3 이내 / 이번 주 / 전체) → 스크롤 **콘텐츠**
+- **탭 필터:** `remainingDays` 기준 ≤3 / ≤7 / 전체(`filteredCards`와 동일 베이스); 탭·폴더 변경 시 상세 선택 해제
+- **목록:** `CardListRow` 한 줄(좌 색상 바, 과목·제목·다음 서브태스크, D-day, 미니 진척바, %, ›); 클릭 시 **같은 영역에서 상세**(라우팅 없음)
+- **상세:** `CardDetailView` — breadcrumb, 마감 인라인 수정, 전체 진척 바, 서브태스크 **읽기 전용** 체크·개별 바, 하단 삭제
+- **전환:** `md+` 가로 슬라이드; **`md` 미만** 페이드
+- **유지:** 우측·모바일 채팅, 데이터/API 흐름(생성·삭제·진척·폴더)
+
+## 대시보드 UI 여백 압축 (`fix: 대시보드 UI 여백 압축 및 모바일 최적화`) ✅
+- 메인 컬럼 **`max-w-2xl` 제거** → 사이드바 제외 가로 활용
+- 헤더·카드 영역 `px-3 py-2` 등으로 패딩 축소, 폴더/탭 컨트롤 크기 축소
+- 카드 행·상세·우선순위 스트립 간격·폰트 단계적 압축; 목록 `space-y-1.5`
 
 ## PWA 설정 ✅ (2026-04-29)
 - `public/manifest.json` — name·start_url(`/dashboard`)·standalone·theme_color
