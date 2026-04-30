@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import CardTimeline from '@/components/dashboard/CardTimeline'
+import { useEffect, useMemo, useState } from 'react'
+import CardTimeline, { type TimeFilterTab } from '@/components/dashboard/CardTimeline'
 import UploadPanel from '@/components/upload/UploadPanel'
 import {
   useChatProgress,
@@ -10,6 +10,7 @@ import {
   ChatInputRowDesktop,
 } from '@/components/dashboard/ChatProgress'
 import PriorityRecommendation from '@/components/PriorityRecommendation'
+import { remainingDays } from '@/lib/priority'
 import type { Card, Subtask, Folder } from '@/types/card'
 
 interface DashboardClientProps {
@@ -33,6 +34,8 @@ export default function DashboardClient({
   const [folderAddError, setFolderAddError] = useState<string | null>(null)
   const [folderAddLoading, setFolderAddLoading] = useState(false)
   const [chatExpanded, setChatExpanded] = useState(false)
+  const [timeTab, setTimeTab] = useState<TimeFilterTab>('all')
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
 
   const chat = useChatProgress({
     onSubtaskProgress: (subtaskId, progress, isDone) => {
@@ -52,6 +55,22 @@ export default function DashboardClient({
     ? cards.filter(c => c.folderId === activeFolderId)
     : cards
 
+  const tabFilteredCards = useMemo(() => {
+    if (timeTab === 'all') return filteredCards
+    return filteredCards.filter(c => {
+      const r = remainingDays(c.dueDate ?? null)
+      if (timeTab === 'd3') return r <= 3
+      return r <= 7
+    })
+  }, [filteredCards, timeTab])
+
+  useEffect(() => {
+    if (selectedCardId == null) return
+    if (!tabFilteredCards.some(c => c.id === selectedCardId)) {
+      setSelectedCardId(null)
+    }
+  }, [tabFilteredCards, selectedCardId])
+
   const scopedSubtasks = useMemo(() => {
     const ids = new Set(filteredCards.map(c => c.id))
     return subtasks.filter(s => ids.has(s.cardId))
@@ -67,6 +86,7 @@ export default function DashboardClient({
   }
 
   const handleDelete = async (cardId: string) => {
+    setSelectedCardId(prev => (prev === cardId ? null : prev))
     setCards(prev => prev.filter(c => c.id !== cardId))
     setSubtasks(prev => prev.filter(st => st.cardId !== cardId))
     await fetch(`/api/cards/${cardId}`, { method: 'DELETE' })
@@ -122,117 +142,159 @@ export default function DashboardClient({
 
   const mainColumn = (
     <main
-      className="sm-main-col min-h-0 w-full flex-1 overflow-y-auto"
+      className="sm-main-col flex min-h-0 w-full flex-1 flex-col overflow-hidden"
       style={{
         paddingBottom: chatExpanded ? '128px' : '68px',
         transition: 'padding-bottom 0.2s ease',
       }}
     >
-      <div className="mx-auto max-w-2xl px-6 py-8">
-        <PriorityRecommendation cards={filteredCards} subtasks={scopedSubtasks} />
+      <div className="shrink-0 border-b border-gray-200/90 bg-[#f3f4f6]">
+        <div className="mx-auto max-w-2xl space-y-2 px-6 pb-2 pt-3">
+          <PriorityRecommendation
+            compact
+            cards={filteredCards}
+            subtasks={scopedSubtasks}
+          />
 
-        <div className="mb-6 space-y-2">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
-            <button
-              type="button"
-              onClick={() => setActiveFolderId(null)}
-              className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium transition-colors
-                ${!activeFolderId ? 'bg-gray-900 text-white' : 'border border-gray-200 bg-white text-gray-700'}`}
-            >
-              전체
-            </button>
-            {folders.map(folder => {
-              const isActive = activeFolderId === folder.id
-              return (
-                <div
-                  key={folder.id}
-                  className={`group inline-flex shrink-0 items-stretch overflow-hidden rounded-xl text-sm font-medium transition-colors
-                    ${isActive ? 'bg-gray-900 text-white' : 'border border-gray-200 bg-white text-gray-700'}`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setActiveFolderId(folder.id)}
-                    className="whitespace-nowrap px-4 py-2 text-left hover:opacity-90"
-                  >
-                    {folder.name}
-                  </button>
-                  <button
-                    type="button"
-                    className={`flex items-center px-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100
-                      ${isActive ? 'text-white/70 hover:text-red-300' : 'text-gray-400 hover:text-red-600'}`}
-                    aria-label={`${folder.name} 폴더 삭제`}
-                    onClick={e => {
-                      e.stopPropagation()
-                      void handleDeleteFolder(folder.id, folder.name)
-                    }}
-                  >
-                    <span aria-hidden className="text-base leading-none">
-                      ✕
-                    </span>
-                  </button>
-                </div>
-              )
-            })}
-            <button
-              type="button"
-              onClick={() => {
-                setFolderAddOpen(v => !v)
-                setFolderAddError(null)
-              }}
-              className="whitespace-nowrap rounded-xl border border-dashed border-gray-300 px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:border-gray-400 hover:bg-gray-50"
-              aria-expanded={folderAddOpen}
-            >
-              + 폴더
-            </button>
-          </div>
-          {folderAddOpen && (
-            <div className="flex flex-wrap items-end gap-2 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-              <div className="min-w-[12rem] flex-1">
-                <label htmlFor="new-folder-name" className="sr-only">
-                  새 폴더 이름
-                </label>
-                <input
-                  id="new-folder-name"
-                  value={newFolderName}
-                  onChange={e => setNewFolderName(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') void handleCreateFolder()
-                  }}
-                  placeholder="예: 미적분학, 경제학원론"
-                  disabled={folderAddLoading}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 disabled:opacity-50"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => void handleCreateFolder()}
-                disabled={folderAddLoading}
-                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-40"
-              >
-                {folderAddLoading ? '만드는 중…' : '만들기'}
-              </button>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
               <button
                 type="button"
                 onClick={() => {
-                  setFolderAddOpen(false)
-                  setFolderAddError(null)
-                  setNewFolderName('')
+                  setActiveFolderId(null)
+                  setSelectedCardId(null)
                 }}
-                disabled={folderAddLoading}
-                className="rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-40"
+                className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium transition-colors
+                ${!activeFolderId ? 'bg-gray-900 text-white' : 'border border-gray-200 bg-white text-gray-700'}`}
               >
-                취소
+                전체
               </button>
-              {folderAddError && <p className="w-full text-sm text-red-600">{folderAddError}</p>}
+              {folders.map(folder => {
+                const isActive = activeFolderId === folder.id
+                return (
+                  <div
+                    key={folder.id}
+                    className={`group inline-flex shrink-0 items-stretch overflow-hidden rounded-xl text-sm font-medium transition-colors
+                    ${isActive ? 'bg-gray-900 text-white' : 'border border-gray-200 bg-white text-gray-700'}`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveFolderId(folder.id)
+                        setSelectedCardId(null)
+                      }}
+                      className="whitespace-nowrap px-4 py-2 text-left hover:opacity-90"
+                    >
+                      {folder.name}
+                    </button>
+                    <button
+                      type="button"
+                      className={`flex items-center px-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100
+                      ${isActive ? 'text-white/70 hover:text-red-300' : 'text-gray-400 hover:text-red-600'}`}
+                      aria-label={`${folder.name} 폴더 삭제`}
+                      onClick={e => {
+                        e.stopPropagation()
+                        void handleDeleteFolder(folder.id, folder.name)
+                      }}
+                    >
+                      <span aria-hidden className="text-base leading-none">
+                        ✕
+                      </span>
+                    </button>
+                  </div>
+                )
+              })}
+              <button
+                type="button"
+                onClick={() => {
+                  setFolderAddOpen(v => !v)
+                  setFolderAddError(null)
+                }}
+                className="whitespace-nowrap rounded-xl border border-dashed border-gray-300 px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:border-gray-400 hover:bg-gray-50"
+                aria-expanded={folderAddOpen}
+              >
+                + 폴더
+              </button>
             </div>
-          )}
-        </div>
+            {folderAddOpen && (
+              <div className="flex flex-wrap items-end gap-2 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+                <div className="min-w-[12rem] flex-1">
+                  <label htmlFor="new-folder-name" className="sr-only">
+                    새 폴더 이름
+                  </label>
+                  <input
+                    id="new-folder-name"
+                    value={newFolderName}
+                    onChange={e => setNewFolderName(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') void handleCreateFolder()
+                    }}
+                    placeholder="예: 미적분학, 경제학원론"
+                    disabled={folderAddLoading}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 disabled:opacity-50"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleCreateFolder()}
+                  disabled={folderAddLoading}
+                  className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-40"
+                >
+                  {folderAddLoading ? '만드는 중…' : '만들기'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFolderAddOpen(false)
+                    setFolderAddError(null)
+                    setNewFolderName('')
+                  }}
+                  disabled={folderAddLoading}
+                  className="rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-40"
+                >
+                  취소
+                </button>
+                {folderAddError && <p className="w-full text-sm text-red-600">{folderAddError}</p>}
+              </div>
+            )}
+          </div>
 
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
+            {(
+              [
+                { id: 'd3' as const, label: 'D-3 이내' },
+                { id: 'week' as const, label: '이번 주' },
+                { id: 'all' as const, label: '전체' },
+              ] as const
+            ).map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  setTimeTab(tab.id)
+                  setSelectedCardId(null)
+                }}
+                className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors
+                  ${timeTab === tab.id
+                    ? 'bg-gray-900 text-white shadow-sm'
+                    : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="mx-auto min-h-0 w-full max-w-2xl flex-1 overflow-y-auto px-6 py-4">
         <CardTimeline
           cards={filteredCards}
           subtasks={subtasks}
           onDueDateChange={handleDueDateChange}
           onDelete={handleDelete}
+          timeTab={timeTab}
+          selectedCardId={selectedCardId}
+          onSelectCard={setSelectedCardId}
         />
       </div>
     </main>

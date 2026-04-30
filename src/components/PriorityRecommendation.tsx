@@ -7,11 +7,12 @@ import { allCardsAtFullProgress, getTopPriorityCards, remainingDays } from '@/li
 export interface PriorityRecommendationProps {
   cards: Card[]
   subtasks: Subtask[]
+  /** 압축 스타일 — 대시보드 상단 스트립용 */
+  compact?: boolean
 }
 
 const RANK_BADGE = ['🔴 1위', '🟡 2위', '🟢 3위'] as const
 
-/** 미완료만, orderIndex 오름차순 — 첫 항 = 당장 할 것 */
 function nextAndRestCount(remaining: Subtask[]): { next: Subtask | null; otherCount: number } {
   if (remaining.length === 0) return { next: null, otherCount: 0 }
   const sorted = [...remaining].sort((a, b) => a.orderIndex - b.orderIndex)
@@ -24,7 +25,11 @@ function formatDue(d: Card['dueDate']): string {
   return t.toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-export default function PriorityRecommendation({ cards, subtasks }: PriorityRecommendationProps) {
+export default function PriorityRecommendation({
+  cards,
+  subtasks,
+  compact = false,
+}: PriorityRecommendationProps) {
   const top3 = useMemo(
     () => getTopPriorityCards(cards, subtasks, 3),
     [cards, subtasks],
@@ -36,6 +41,66 @@ export default function PriorityRecommendation({ cards, subtasks }: PriorityReco
   )
 
   if (hideForAllComplete || top3.length === 0) return null
+
+  if (compact) {
+    return (
+      <section
+        className="rounded-lg border border-blue-100 bg-blue-50/90 px-2.5 py-2 shadow-sm"
+        aria-label="오늘의 우선순위"
+      >
+        <h2 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-blue-700">
+          🎯 우선순위
+        </h2>
+        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+          <ul>
+            {top3.map((item, i) => {
+              const d = remainingDays(item.card.dueDate)
+              return (
+                <li
+                  key={item.card.id}
+                  className={`px-2.5 py-2 ${i > 0 ? 'border-t-[0.5px] border-gray-200' : ''}`}
+                >
+                  <div className="mb-1 flex items-start justify-between gap-1.5">
+                    <span className="text-[11px] font-medium text-gray-800">{RANK_BADGE[i] ?? '⭐'}</span>
+                    <span className="shrink-0 text-[10px] text-gray-500">
+                      {formatDue(item.card.dueDate)}
+                      {d === 0 && item.card.dueDate && (
+                        <span className="ml-0.5 font-medium text-red-600">(임박)</span>
+                      )}
+                    </span>
+                  </div>
+                  {(() => {
+                    const { next, otherCount } = nextAndRestCount(item.remainingSubtasks)
+                    if (next) {
+                      return (
+                        <div className="space-y-0.5">
+                          <p className="line-clamp-2 text-[11px] leading-snug text-gray-900">
+                            <span className="font-semibold">{item.card.subject}</span>
+                            <span className="text-gray-500"> – </span>
+                            <span>{next.title}</span>
+                          </p>
+                          {otherCount > 0 && (
+                            <p className="text-[10px] text-gray-500">외 {otherCount}개</p>
+                          )}
+                        </div>
+                      )
+                    }
+                    return (
+                      <p className="line-clamp-2 text-[11px] leading-snug text-gray-900">
+                        <span className="font-semibold">{item.card.subject}</span>
+                        <span className="text-gray-500"> – </span>
+                        <span>{item.card.title}</span>
+                      </p>
+                    )
+                  })()}
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section

@@ -3,37 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Card, Subtask } from '@/types/card'
 import { calcProgress } from '@/types/card'
+import { remainingDays } from '@/lib/priority'
 
 export type { Card, Subtask }
-
-interface CardItemProps {
-  card: Card
-  subtasks: Subtask[]
-  onDueDateChange: (cardId: string, dueDate: string | null) => void
-  onDelete: (cardId: string) => void
-}
-
-/** 열림(∧ 위): 접기 의미 · 닫힘(∨ 아래): 펼치기 의미 — 기본 경로는 위쪽 화살표 */
-function Chevron12({ expanded }: { expanded: boolean }) {
-  return (
-    <svg
-      width={12}
-      height={12}
-      viewBox="0 0 12 12"
-      className={`shrink-0 text-gray-500 transition-transform duration-200 ${expanded ? '' : 'rotate-180'}`}
-      aria-hidden
-    >
-      <path
-        d="M2.5 7.5 L6 4 L9.5 7.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
 
 function getProgressColor(percentage: number): string {
   if (percentage <= 33) return 'bg-red-400'
@@ -42,7 +14,15 @@ function getProgressColor(percentage: number): string {
   return 'bg-green-400'
 }
 
-function getDdayLabel(dueDate: string | null): string {
+/** 목록 좌측 바: D-3 이내 빨강 / D-7 이내 노랑 / 그 외 초록 */
+export function getListAccentBarClass(card: Card): string {
+  const r = remainingDays(card.dueDate ?? null)
+  if (r <= 3) return 'bg-red-500'
+  if (r <= 7) return 'bg-amber-400'
+  return 'bg-emerald-500'
+}
+
+export function getDdayLabel(dueDate: string | null): string {
   if (!dueDate) return '마감일 없음'
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -55,22 +35,92 @@ function getDdayLabel(dueDate: string | null): string {
   return `D+${Math.abs(diffDays)}`
 }
 
-function formatDueDate(dueDate: string | null): string {
+export function formatDueDate(dueDate: string | null): string {
   if (!dueDate) return '날짜 설정'
   const date = new Date(dueDate)
   if (Number.isNaN(date.getTime())) return '-'
   return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`
 }
 
-export default function CardItem({ card, subtasks, onDueDateChange, onDelete }: CardItemProps) {
-  const [subtasksOpen, setSubtasksOpen] = useState(false)
+interface CardListRowProps {
+  card: Card
+  subtasks: Subtask[]
+  onClick: () => void
+}
+
+export function CardListRow({ card, subtasks, onClick }: CardListRowProps) {
+  const dueDate = card.dueDate ?? (card as unknown as Record<string, unknown>).due_date as string | null ?? null
+  const sorted = useMemo(
+    () => [...subtasks].sort((a, b) => a.orderIndex - b.orderIndex),
+    [subtasks],
+  )
+  const nextTodo = sorted.find(s => (s.progress ?? 0) < 100)
+  const progress = useMemo(() => calcProgress(subtasks), [subtasks])
+  const nextLine =
+    sorted.length === 0 ? '서브태스크 없음' : nextTodo ? nextTodo.title : '완료 🎉'
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-2 rounded-lg border border-gray-200 bg-white py-2 pl-0 pr-2 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50/80"
+    >
+      <div
+        className={`h-10 w-[3px] shrink-0 self-stretch rounded-full ${getListAccentBarClass(card)}`}
+        aria-hidden
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+          <span className="shrink-0 text-[10px] font-medium text-gray-500">{card.subject}</span>
+          <span className="min-w-0 truncate text-sm font-semibold text-gray-900">{card.title}</span>
+        </div>
+        <p className="mt-0.5 truncate text-[11px] text-gray-500">{nextLine}</p>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="w-12 text-right text-[11px] font-semibold tabular-nums text-gray-700">
+          {getDdayLabel(dueDate)}
+        </span>
+        <div className="h-1.5 w-14 overflow-hidden rounded-full bg-gray-100">
+          <div
+            className={`h-full rounded-full ${getProgressColor(progress)}`}
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <span className="w-7 text-right text-[11px] font-semibold tabular-nums text-gray-600">
+          {progress}%
+        </span>
+        <span className="text-gray-400" aria-hidden>
+          ›
+        </span>
+      </div>
+    </button>
+  )
+}
+
+interface CardDetailViewProps {
+  card: Card
+  subtasks: Subtask[]
+  onBack: () => void
+  onDueDateChange: (cardId: string, dueDate: string | null) => void
+  onDelete: (cardId: string) => void
+}
+
+export function CardDetailView({
+  card,
+  subtasks,
+  onBack,
+  onDueDateChange,
+  onDelete,
+}: CardDetailViewProps) {
   const [localSubtasks, setLocalSubtasks] = useState<Subtask[]>(subtasks)
   const [isEditingDate, setIsEditingDate] = useState(false)
   const dateInputRef = useRef<HTMLInputElement>(null)
 
   const dueDate = card.dueDate ?? (card as unknown as Record<string, unknown>).due_date as string | null ?? null
 
-  useEffect(() => { setLocalSubtasks(subtasks) }, [subtasks])
+  useEffect(() => {
+    setLocalSubtasks(subtasks)
+  }, [subtasks])
   useEffect(() => {
     if (isEditingDate) dateInputRef.current?.showPicker?.()
   }, [isEditingDate])
@@ -78,10 +128,6 @@ export default function CardItem({ card, subtasks, onDueDateChange, onDelete }: 
   const sortedSubtasks = useMemo(
     () => [...localSubtasks].sort((a, b) => a.orderIndex - b.orderIndex),
     [localSubtasks],
-  )
-  const nextTodo = useMemo(
-    () => sortedSubtasks.find(s => (s.progress ?? 0) < 100),
-    [sortedSubtasks],
   )
   const progress = useMemo(() => calcProgress(localSubtasks), [localSubtasks])
 
@@ -92,19 +138,36 @@ export default function CardItem({ card, subtasks, onDueDateChange, onDelete }: 
   }
 
   return (
-    <article className="rounded-xl border border-gray-200 bg-white p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="mb-2 flex items-center gap-2">
-            <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">
-              {card.type}
-            </span>
-            <span className="truncate text-sm text-gray-500">{card.subject}</span>
-          </div>
-          <h3 className="truncate text-base font-semibold text-gray-900">{card.title}</h3>
-        </div>
+    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-gray-100 pb-3">
+        <button
+          type="button"
+          onClick={onBack}
+          className="text-xs font-medium text-gray-600 hover:text-gray-900"
+        >
+          ← 목록
+        </button>
+        <span className="text-xs text-gray-300" aria-hidden>
+          /
+        </span>
+        <p className="min-w-0 flex-1 truncate text-xs text-gray-500">
+          <span className="font-medium text-gray-700">{card.subject}</span>
+          <span className="text-gray-400"> · </span>
+          <span>{card.title}</span>
+        </p>
+      </div>
 
-        <div className="shrink-0 text-right">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-700">
+          {card.type}
+        </span>
+        <span className="text-sm text-gray-600">{card.subject}</span>
+      </div>
+      <h2 className="text-lg font-semibold text-gray-900">{card.title}</h2>
+
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+        <div className="flex items-center gap-2">
+          <span className="text-gray-500">마감</span>
           {isEditingDate ? (
             <input
               ref={dateInputRef}
@@ -113,79 +176,82 @@ export default function CardItem({ card, subtasks, onDueDateChange, onDelete }: 
               onChange={handleDateChange}
               onBlur={() => setIsEditingDate(false)}
               className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-200"
-              autoFocus
             />
           ) : (
             <button
               type="button"
               onClick={() => setIsEditingDate(true)}
-              className="text-right hover:opacity-70 transition-opacity"
-              title="날짜 수정"
+              className="text-left font-semibold text-gray-900 hover:opacity-80"
             >
-              <p className="text-sm font-semibold text-gray-900">{getDdayLabel(dueDate)}</p>
-              <p className="mt-1 text-xs text-gray-400 underline decoration-dotted">{formatDueDate(dueDate)}</p>
+              {getDdayLabel(dueDate)}{' '}
+              <span className="text-xs font-normal text-gray-400 underline decoration-dotted">
+                ({formatDueDate(dueDate)})
+              </span>
             </button>
           )}
         </div>
+        <span className="text-gray-300">|</span>
+        <span className="text-gray-600">
+          진척 <span className="font-semibold text-gray-900">{progress}%</span>
+        </span>
       </div>
 
       <div className="mt-4">
-        <div className="mb-2 flex items-center gap-3">
+        <div className="mb-1 flex items-center gap-3">
           <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
             <div
               className={`h-full rounded-full transition-all ${getProgressColor(progress)}`}
               style={{ width: `${progress}%` }}
             />
           </div>
-          <span className="w-11 text-right text-xs font-semibold text-gray-600">{progress}%</span>
         </div>
       </div>
 
-      <p className="mt-3 truncate text-sm text-gray-600">
-        {sortedSubtasks.length === 0
-          ? '서브태스크가 없어요'
-          : nextTodo
-            ? `다음 할 일: ${nextTodo.title}`
-            : '모든 할 일을 완료했어요 🎉'}
-      </p>
-
-      {sortedSubtasks.length > 0 && (
-        <button
-          type="button"
-          onClick={() => setSubtasksOpen(v => !v)}
-          className="mt-3 flex w-full items-center justify-between gap-2 py-1 text-left text-sm text-gray-700 hover:text-gray-900"
-          aria-expanded={subtasksOpen}
-        >
-          <span>{subtasksOpen ? '서브태스크 닫기' : '서브태스크 보기'}</span>
-          <Chevron12 expanded={subtasksOpen} />
-        </button>
-      )}
-
-      {subtasksOpen && sortedSubtasks.length > 0 && (
-        <div className="mt-2">
-          <div className="border-t border-gray-200" />
-          <ul className="mt-3 space-y-2">
-            {sortedSubtasks.map(subtask => {
-              const p = subtask.progress ?? (subtask.isDone ? 100 : 0)
+      <div className="mt-6">
+        <p className="mb-2 text-xs font-medium text-gray-500">서브태스크</p>
+        <ul className="space-y-3">
+          {sortedSubtasks.length === 0 ? (
+            <li className="text-sm text-gray-400">서브태스크가 없어요</li>
+          ) : (
+            sortedSubtasks.map(st => {
+              const p = st.progress ?? (st.isDone ? 100 : 0)
               const done = p >= 100
               return (
-                <li key={subtask.id} className="flex items-baseline justify-between gap-3">
-                  <span
-                    className={`min-w-0 flex-1 text-sm ${done ? 'text-gray-400 line-through' : 'text-gray-800'}`}
-                  >
-                    {subtask.title}
-                  </span>
-                  {p > 0 && p < 100 && (
-                    <span className="shrink-0 text-xs font-medium tabular-nums text-gray-500">{p}%</span>
-                  )}
+                <li key={st.id} className="flex items-start gap-3 rounded-lg border border-gray-100 bg-gray-50/50 px-3 py-2">
+                  <input
+                    type="checkbox"
+                    checked={done}
+                    readOnly
+                    disabled
+                    className="mt-1 h-3.5 w-3.5 shrink-0 cursor-default rounded border-gray-300 opacity-80"
+                    aria-label={done ? '완료' : '미완료'}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className={`text-sm ${done ? 'text-gray-400 line-through' : 'text-gray-800'}`}
+                    >
+                      {st.title}
+                    </p>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <div className="h-1.5 min-w-[4rem] flex-1 max-w-[200px] overflow-hidden rounded-full bg-gray-200">
+                        <div
+                          className={`h-full rounded-full ${getProgressColor(p)}`}
+                          style={{ width: `${p}%` }}
+                        />
+                      </div>
+                      <span className="w-8 text-right text-[11px] font-medium tabular-nums text-gray-500">
+                        {p}%
+                      </span>
+                    </div>
+                  </div>
                 </li>
               )
-            })}
-          </ul>
-        </div>
-      )}
+            })
+          )}
+        </ul>
+      </div>
 
-      <div className="mt-4 flex justify-end border-t border-gray-200 pt-3">
+      <div className="mt-8 flex justify-end border-t border-gray-200 pt-4">
         <button
           type="button"
           onClick={() => onDelete(card.id)}
@@ -194,6 +260,6 @@ export default function CardItem({ card, subtasks, onDueDateChange, onDelete }: 
           카드 삭제
         </button>
       </div>
-    </article>
+    </div>
   )
 }
