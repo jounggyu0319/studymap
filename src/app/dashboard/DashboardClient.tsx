@@ -149,22 +149,22 @@ export default function DashboardClient({
       }}
     >
       <div className="shrink-0 border-b border-gray-200/90 bg-[#f3f4f6]">
-        <div className="mx-auto max-w-2xl space-y-2 px-6 pb-2 pt-3">
+        <div className="w-full space-y-1.5 px-3 py-2">
           <PriorityRecommendation
             compact
             cards={filteredCards}
             subtasks={scopedSubtasks}
           />
 
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
               <button
                 type="button"
                 onClick={() => {
                   setActiveFolderId(null)
                   setSelectedCardId(null)
                 }}
-                className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium transition-colors
+                className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors
                 ${!activeFolderId ? 'bg-gray-900 text-white' : 'border border-gray-200 bg-white text-gray-700'}`}
               >
                 전체
@@ -174,7 +174,7 @@ export default function DashboardClient({
                 return (
                   <div
                     key={folder.id}
-                    className={`group inline-flex shrink-0 items-stretch overflow-hidden rounded-xl text-sm font-medium transition-colors
+                    className={`group inline-flex shrink-0 items-stretch overflow-hidden rounded-lg text-xs font-medium transition-colors
                     ${isActive ? 'bg-gray-900 text-white' : 'border border-gray-200 bg-white text-gray-700'}`}
                   >
                     <button
@@ -183,7 +183,7 @@ export default function DashboardClient({
                         setActiveFolderId(folder.id)
                         setSelectedCardId(null)
                       }}
-                      className="whitespace-nowrap px-4 py-2 text-left hover:opacity-90"
+                      className="whitespace-nowrap px-3 py-1.5 text-left hover:opacity-90"
                     >
                       {folder.name}
                     </button>
@@ -210,14 +210,14 @@ export default function DashboardClient({
                   setFolderAddOpen(v => !v)
                   setFolderAddError(null)
                 }}
-                className="whitespace-nowrap rounded-xl border border-dashed border-gray-300 px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:border-gray-400 hover:bg-gray-50"
+                className="whitespace-nowrap rounded-lg border border-dashed border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-gray-400 hover:bg-gray-50"
                 aria-expanded={folderAddOpen}
               >
                 + 폴더
               </button>
             </div>
             {folderAddOpen && (
-              <div className="flex flex-wrap items-end gap-2 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+              <div className="flex flex-wrap items-end gap-2 rounded-lg border border-gray-200 bg-white p-2 shadow-sm">
                 <div className="min-w-[12rem] flex-1">
                   <label htmlFor="new-folder-name" className="sr-only">
                     새 폴더 이름
@@ -259,7 +259,7 @@ export default function DashboardClient({
             )}
           </div>
 
-          <div className="flex gap-1.5 overflow-x-auto pb-1">
+          <div className="flex gap-1 overflow-x-auto pb-0.5">
             {(
               [
                 { id: 'd3' as const, label: 'D-3 이내' },
@@ -286,7 +286,7 @@ export default function DashboardClient({
         </div>
       </div>
 
-      <div className="mx-auto min-h-0 w-full max-w-2xl flex-1 overflow-y-auto px-6 py-4">
+      <div className="min-h-0 w-full flex-1 overflow-y-auto px-3 py-2">
         <CardTimeline
           cards={filteredCards}
           subtasks={subtasks}

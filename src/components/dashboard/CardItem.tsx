@@ -63,10 +63,10 @@ export function CardListRow({ card, subtasks, onClick }: CardListRowProps) {
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-2 rounded-lg border border-gray-200 bg-white py-2 pl-0 pr-2 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50/80"
+      className="flex w-full items-center gap-3 rounded-lg border border-gray-200 bg-white py-2 pl-0 pr-3 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50/80"
     >
       <div
-        className={`h-10 w-[3px] shrink-0 self-stretch rounded-full ${getListAccentBarClass(card)}`}
+        className={`min-h-[2.25rem] w-[3px] shrink-0 self-stretch rounded-full ${getListAccentBarClass(card)}`}
         aria-hidden
       />
       <div className="min-w-0 flex-1">
@@ -138,8 +138,8 @@ export function CardDetailView({
   }
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-gray-100 pb-3">
+    <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+      <div className="mb-2 flex flex-wrap items-center gap-2 border-b border-gray-100 pb-2">
         <button
           type="button"
           onClick={onBack}
@@ -163,9 +163,9 @@ export function CardDetailView({
         </span>
         <span className="text-sm text-gray-600">{card.subject}</span>
       </div>
-      <h2 className="text-lg font-semibold text-gray-900">{card.title}</h2>
+      <h2 className="text-base font-semibold text-gray-900">{card.title}</h2>
 
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
         <div className="flex items-center gap-2">
           <span className="text-gray-500">마감</span>
           {isEditingDate ? (
@@ -196,8 +196,8 @@ export function CardDetailView({
         </span>
       </div>
 
-      <div className="mt-4">
-        <div className="mb-1 flex items-center gap-3">
+      <div className="mt-3">
+        <div className="mb-0 flex items-center gap-3">
           <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
             <div
               className={`h-full rounded-full transition-all ${getProgressColor(progress)}`}
@@ -207,9 +207,9 @@ export function CardDetailView({
         </div>
       </div>
 
-      <div className="mt-6">
-        <p className="mb-2 text-xs font-medium text-gray-500">서브태스크</p>
-        <ul className="space-y-3">
+      <div className="mt-4">
+        <p className="mb-1.5 text-xs font-medium text-gray-500">서브태스크</p>
+        <ul className="space-y-2">
           {sortedSubtasks.length === 0 ? (
             <li className="text-sm text-gray-400">서브태스크가 없어요</li>
           ) : (
@@ -217,7 +217,7 @@ export function CardDetailView({
               const p = st.progress ?? (st.isDone ? 100 : 0)
               const done = p >= 100
               return (
-                <li key={st.id} className="flex items-start gap-3 rounded-lg border border-gray-100 bg-gray-50/50 px-3 py-2">
+                <li key={st.id} className="flex items-start gap-2 rounded-md border border-gray-100 bg-gray-50/50 px-2 py-1.5">
                   <input
                     type="checkbox"
                     checked={done}
@@ -251,7 +251,7 @@ export function CardDetailView({
         </ul>
       </div>
 
-      <div className="mt-8 flex justify-end border-t border-gray-200 pt-4">
+      <div className="mt-5 flex justify-end border-t border-gray-200 pt-3">
         <button
           type="button"
           onClick={() => onDelete(card.id)}
