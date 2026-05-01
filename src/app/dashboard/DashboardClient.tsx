@@ -12,6 +12,7 @@ import {
 import PriorityRecommendation from '@/components/PriorityRecommendation'
 import { remainingDays } from '@/lib/priority'
 import type { Card, Subtask, Folder } from '@/types/card'
+import { createClient } from '@/lib/supabase/client'
 
 interface DashboardClientProps {
   initialCards: Card[]
@@ -36,6 +37,87 @@ export default function DashboardClient({
   const [chatExpanded, setChatExpanded] = useState(false)
   const [timeTab, setTimeTab] = useState<TimeFilterTab>('all')
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function mapCard(r: any): Card {
+    return {
+      id: r.id,
+      userId: r.user_id,
+      folderId: r.folder_id,
+      subject: r.subject,
+      title: r.title,
+      type: r.type,
+      dueDate: r.due_date,
+      weight: r.weight,
+      weightReason: r.weight_reason,
+      fileUrl: r.file_url,
+      createdAt: r.created_at,
+    }
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function mapSubtask(r: any): Subtask {
+    const rawP = r.progress ?? r.Progress
+    let progress =
+      typeof rawP === 'number' && !Number.isNaN(rawP) ? Math.round(rawP) : undefined
+    const done = r.is_done ?? r.isDone ?? false
+    if (progress === undefined) progress = done ? 100 : 0
+    progress = Math.min(100, Math.max(0, progress))
+    return {
+      id: r.id,
+      cardId: r.card_id ?? r.cardId,
+      title: r.title,
+      progress,
+      isDone: progress >= 100,
+      weight: r.weight,
+      orderIndex: r.order_index ?? r.orderIndex ?? 0,
+    }
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function mapFolder(r: any): Folder {
+    return {
+      id: r.id,
+      userId: r.user_id,
+      name: r.name,
+      orderIndex: r.order_index,
+      createdAt: r.created_at,
+    }
+  }
+
+  async function refreshData() {
+    try {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: cards } = await supabase
+        .from('cards')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('due_date', { ascending: true, nullsFirst: false })
+
+      const cardIds = (cards ?? []).map((c: any) => c.id)
+      const [{ data: subtasks }, { data: folders }] = await Promise.all([
+        supabase
+          .from('subtasks')
+          .select('*')
+          .in('card_id', cardIds.length > 0 ? cardIds : ['none'])
+          .order('order_index', { ascending: true }),
+        supabase
+          .from('folders')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('order_index', { ascending: true }),
+      ])
+
+      if (cards) setCards(cards.map(mapCard))
+      if (subtasks) setSubtasks(subtasks.map(mapSubtask))
+      if (folders) setFolders(folders.map(mapFolder))
+    } catch {
+      // 새로고침 실패해도 조용히 무시
+    }
+  }
 
   const chat = useChatProgress({
     activeCardId: selectedCardId,
@@ -71,6 +153,16 @@ export default function DashboardClient({
       setSelectedCardId(null)
     }
   }, [tabFilteredCards, selectedCardId])
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshData()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [])
 
   const scopedSubtasks = useMemo(() => {
     const ids = new Set(filteredCards.map(c => c.id))
