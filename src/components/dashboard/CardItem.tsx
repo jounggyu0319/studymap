@@ -138,7 +138,7 @@ export function CardDetailView({
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+    <div className="rounded-lg border border-gray-200 bg-white px-3 pt-3 pb-40 shadow-sm md:p-3">
       <div className="mb-2 flex flex-wrap items-center gap-2 border-b border-gray-100 pb-2">
         <button
           type="button"
