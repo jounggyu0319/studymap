@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
 
-// PATCH /api/cards/[id] — 마감일 수정
+// PATCH /api/cards/[id] — 마감일·폴더 수정
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -14,11 +14,19 @@ export async function PATCH(
 
   const { id } = await params
   const body = await request.json()
-  const { dueDate } = body as { dueDate: string | null }
+  const { dueDate, folderId } = body as { dueDate?: string | null; folderId?: string | null }
+
+  const updateData: Record<string, unknown> = {}
+  if (dueDate !== undefined) updateData.due_date = dueDate
+  if (folderId !== undefined) updateData.folder_id = folderId
+
+  if (Object.keys(updateData).length === 0) {
+    return NextResponse.json({ error: '수정할 항목이 없어요.' }, { status: 400 })
+  }
 
   const { data, error } = await supabase
     .from('cards')
-    .update({ due_date: dueDate })
+    .update(updateData)
     .eq('id', id)
     .eq('user_id', user.id)
     .select()

@@ -119,14 +119,55 @@ export default function DashboardClient({
     }
   }
 
+  async function getOrCreateDoneFolder (): Promise<string> {
+    const existing = folders.find(f => f.name === '✅ 완료')
+    if (existing) return existing.id
+
+    const res = await fetch('/api/folders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: '✅ 완료' }),
+    })
+    const data = await res.json()
+    const newFolder = data.folder as Folder
+    setFolders(prev => [...prev, newFolder])
+    return newFolder.id
+  }
+
+  async function moveCardToDoneFolder (cardId: string) {
+    const doneFolderId = await getOrCreateDoneFolder()
+    await fetch(`/api/cards/${cardId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folderId: doneFolderId }),
+    })
+    setCards(prev =>
+      prev.map(c => (c.id === cardId ? { ...c, folderId: doneFolderId } : c)),
+    )
+  }
+
   const chat = useChatProgress({
     activeCardId: selectedCardId,
     onSubtaskProgress: (subtaskId, progress, isDone) => {
-      setSubtasks(prev =>
-        prev.map(st =>
+      setSubtasks(prev => {
+        const updated = prev.map(st =>
           st.id === subtaskId ? { ...st, progress, isDone: isDone || progress >= 100 } : st,
-        ),
-      )
+        )
+        const changedSt = updated.find(st => st.id === subtaskId)
+        if (changedSt) {
+          const cardSubs = updated.filter(st => st.cardId === changedSt.cardId)
+          const allDone =
+            cardSubs.length > 0 && cardSubs.every(st => (st.progress ?? 0) >= 100)
+          if (allDone) {
+            const card = cards.find(c => c.id === changedSt.cardId)
+            const doneFolder = folders.find(f => f.name === '✅ 완료')
+            if (card && card.folderId !== doneFolder?.id) {
+              void moveCardToDoneFolder(changedSt.cardId)
+            }
+          }
+        }
+        return updated
+      })
     },
     onSubtaskRemoved: subtaskId => {
       setSubtasks(prev => prev.filter(st => st.id !== subtaskId))
@@ -134,9 +175,18 @@ export default function DashboardClient({
     onExpandedChange: setChatExpanded,
   })
 
+  const doneFolderId = folders.find(f => f.name === '✅ 완료')?.id
   const filteredCards = activeFolderId
     ? cards.filter(c => c.folderId === activeFolderId)
-    : cards
+    : cards.filter(c => c.folderId !== doneFolderId)
+
+  const sortedFolders = useMemo(
+    () => [
+      ...folders.filter(f => f.name !== '✅ 완료'),
+      ...folders.filter(f => f.name === '✅ 완료'),
+    ],
+    [folders],
+  )
 
   const tabFilteredCards = useMemo(() => {
     if (timeTab === 'all') return filteredCards
@@ -262,7 +312,7 @@ export default function DashboardClient({
               >
                 전체
               </button>
-              {folders.map(folder => {
+              {sortedFolders.map(folder => {
                 const isActive = activeFolderId === folder.id
                 return (
                   <div
@@ -280,20 +330,22 @@ export default function DashboardClient({
                     >
                       {folder.name}
                     </button>
-                    <button
-                      type="button"
-                      className={`flex items-center px-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100
+                    {folder.name !== '✅ 완료' && (
+                      <button
+                        type="button"
+                        className={`flex items-center px-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100
                       ${isActive ? 'text-white/70 hover:text-red-300' : 'text-gray-400 hover:text-red-600'}`}
-                      aria-label={`${folder.name} 폴더 삭제`}
-                      onClick={e => {
-                        e.stopPropagation()
-                        void handleDeleteFolder(folder.id, folder.name)
-                      }}
-                    >
-                      <span aria-hidden className="text-base leading-none">
-                        ✕
-                      </span>
-                    </button>
+                        aria-label={`${folder.name} 폴더 삭제`}
+                        onClick={e => {
+                          e.stopPropagation()
+                          void handleDeleteFolder(folder.id, folder.name)
+                        }}
+                      >
+                        <span aria-hidden className="text-base leading-none">
+                          ✕
+                        </span>
+                      </button>
+                    )}
                   </div>
                 )
               })}
