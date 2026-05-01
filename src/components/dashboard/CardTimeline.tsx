@@ -23,6 +23,7 @@ interface CardTimelineProps {
   timeTab: TimeFilterTab
   selectedCardId: string | null
   onSelectCard: (id: string | null) => void
+  notesRefreshKey?: number
 }
 
 function filterCardsByTimeTab(cards: Card[], tab: TimeFilterTab): Card[] {
@@ -42,6 +43,7 @@ export default function CardTimeline({
   timeTab,
   selectedCardId,
   onSelectCard,
+  notesRefreshKey = 0,
 }: CardTimelineProps) {
   const tabCards = useMemo(() => filterCardsByTimeTab(cards, timeTab), [cards, timeTab])
 
@@ -95,6 +97,7 @@ export default function CardTimeline({
         onBack={() => onSelectCard(null)}
         onDueDateChange={onDueDateChange}
         onDelete={handleDeleteDetail}
+        notesRefreshKey={notesRefreshKey}
       />
     ) : (
       <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50/50 px-3 py-6 text-center text-sm text-gray-400">

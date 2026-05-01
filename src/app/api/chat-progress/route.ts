@@ -35,14 +35,21 @@ targetCardId / targetSubtaskId를 현재 맥락으로 이어받아라.
 ## 삭제 요청
 "삭제해줘", "없애줘", "빼줘" 등 서브태스크 제거 의도 → action: "remove_subtask"
 
-## 응답 형식
+## 메모 저장
+사용자가 나중에 다시 보고 싶은 정보만 남기려는 경우 → action: "memo"
+예: "메모해줘", "저장해줘", "기억해줘", 강의·자료 요약, 시험 범위, 나중에 참고할 팁 등.
+이때 memoContent 필드에 핵심만 정제한 본문(한국어)을 넣어라. message는 짧은 확인 멘트면 된다.
+진행률 갱신(progressUpdate)과 문장이 겹쳐 해석이 애매하면 action: "askClarification".
+
+## 응답 형식 (action 필드 = 기존 스펙의 intent와 동일한 역할)
 {
-  "action": "progressUpdate" | "remove_subtask" | "askClarification" | "none",
+  "action": "progressUpdate" | "remove_subtask" | "askClarification" | "memo" | "none",
   "targetCardId": "카드id 또는 null",
   "targetSubtaskId": "서브태스크id 또는 null",
   "progress": 0~100,
   "confidence": 0.0~1.0,
-  "message": "사용자에게 보낼 짧은 한국어 확인 메시지"
+  "message": "사용자에게 보낼 짧은 한국어 확인 메시지",
+  "memoContent": "action이 memo일 때만 필수: 저장할 정제 본문"
 }`
 
 type ChatRole = 'user' | 'ai'
@@ -65,11 +72,13 @@ type CandidateCard = {
 
 type HaikuResponse = {
   action?: string
+  intent?: string
   targetCardId?: string | null
   targetSubtaskId?: string | null
   progress?: number
   confidence?: number
   message?: string
+  memoContent?: string
 }
 
 function parseHistory(raw: unknown): HistoryTurn[] {
@@ -244,7 +253,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'AI 응답을 해석하지 못했어요.' }, { status: 500 })
     }
 
-    const action = typeof parsed.action === 'string' ? parsed.action : 'none'
+    const actionRaw =
+      typeof parsed.action === 'string'
+        ? parsed.action
+        : typeof parsed.intent === 'string'
+          ? parsed.intent
+          : 'none'
+    const action = actionRaw
     const confidence =
       typeof parsed.confidence === 'number' && !Number.isNaN(parsed.confidence)
         ? Math.min(1, Math.max(0, parsed.confidence))
@@ -303,6 +318,44 @@ export async function POST(request: NextRequest) {
         ...(action === 'askClarification' ? { needClarification: true } : {}),
         cardId: resolvedCardId,
         subtaskId: targetSubtaskId,
+        confidence,
+        message: aiMessage,
+      })
+    }
+
+    if (action === 'memo') {
+      const effectiveActive =
+        activeCardId && cardById.has(activeCardId) ? activeCardId : null
+      if (!effectiveActive) {
+        return NextResponse.json({
+          matched: false,
+          progressApplied: false,
+          message: '먼저 카드를 선택해줘',
+        })
+      }
+
+      const memoBody =
+        typeof parsed.memoContent === 'string' && parsed.memoContent.trim()
+          ? parsed.memoContent.trim()
+          : effectiveMessage
+
+      const { error: insErr } = await supabase.from('notes').insert({
+        user_id: user.id,
+        card_id: effectiveActive,
+        content: memoBody,
+      })
+
+      if (insErr) {
+        console.error('[chat-progress] note insert', insErr)
+        return NextResponse.json({ error: '메모를 저장하지 못했어요.' }, { status: 500 })
+      }
+
+      return NextResponse.json({
+        matched: true,
+        progressApplied: false,
+        memoSaved: true,
+        cardId: effectiveActive,
+        subtaskId: null,
         confidence,
         message: aiMessage,
       })

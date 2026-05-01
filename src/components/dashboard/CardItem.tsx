@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Card, Subtask } from '@/types/card'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
+import type { Card, Subtask, Note } from '@/types/card'
 import { calcProgress } from '@/types/card'
 import { remainingDays } from '@/lib/priority'
 
@@ -103,6 +103,14 @@ interface CardDetailViewProps {
   onBack: () => void
   onDueDateChange: (cardId: string, dueDate: string | null) => void
   onDelete: (cardId: string) => void
+  /** chat-progress memo 저장 시 증가 → 메모 목록 갱신 */
+  notesRefreshKey?: number
+}
+
+function formatNoteDateMobile(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
 export function CardDetailView({
@@ -111,7 +119,10 @@ export function CardDetailView({
   onBack,
   onDueDateChange,
   onDelete,
+  notesRefreshKey = 0,
 }: CardDetailViewProps) {
+  const [memoMode, setMemoMode] = useState(false)
+  const [notes, setNotes] = useState<Note[]>([])
   const [localSubtasks, setLocalSubtasks] = useState<Subtask[]>(subtasks)
   const [isEditingDate, setIsEditingDate] = useState(false)
   const dateInputRef = useRef<HTMLInputElement>(null)
@@ -121,6 +132,25 @@ export function CardDetailView({
   useEffect(() => {
     setLocalSubtasks(subtasks)
   }, [subtasks])
+  useEffect(() => {
+    setMemoMode(false)
+  }, [card.id])
+
+  const loadNotes = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/notes?cardId=${encodeURIComponent(card.id)}`)
+      if (!res.ok) return
+      const data = (await res.json()) as { notes?: Note[] }
+      setNotes(Array.isArray(data.notes) ? data.notes : [])
+    } catch {
+      /* ignore */
+    }
+  }, [card.id])
+
+  useEffect(() => {
+    if (memoMode) void loadNotes()
+  }, [memoMode, card.id, loadNotes, notesRefreshKey])
+
   useEffect(() => {
     if (isEditingDate) dateInputRef.current?.showPicker?.()
   }, [isEditingDate])
@@ -135,6 +165,60 @@ export function CardDetailView({
     const val = e.target.value || null
     onDueDateChange(card.id, val)
     setIsEditingDate(false)
+  }
+
+  const deleteNoteMobile = async (noteId: string) => {
+    const res = await fetch(`/api/notes/${noteId}`, { method: 'DELETE' })
+    if (res.ok) setNotes(prev => prev.filter(n => n.id !== noteId))
+  }
+
+  if (memoMode) {
+    return (
+      <div
+        className="rounded-lg border border-gray-200 bg-white px-3 pt-3 pb-40 shadow-sm md:p-3"
+        style={{ colorScheme: 'light' }}
+      >
+        <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-gray-100 pb-3">
+          <button
+            type="button"
+            onClick={() => setMemoMode(false)}
+            className="text-xs font-medium text-gray-600 hover:text-gray-900"
+          >
+            ← 뒤로
+          </button>
+          <span className="text-sm font-semibold text-gray-900">{card.subject}</span>
+        </div>
+        <div className="space-y-3">
+          {notes.length === 0 ? (
+            <p className="py-6 text-center text-sm text-gray-400">
+              아직 메모가 없어요. 채팅창에서 기록하면 여기에 나타나요.
+            </p>
+          ) : (
+            notes.map(n => (
+              <div
+                key={n.id}
+                className="rounded-lg border border-gray-100 bg-gray-50/80 px-3 py-2 text-[13px]"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className="shrink-0 text-[11px] text-gray-400">
+                    {formatNoteDateMobile(n.createdAt)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void deleteNoteMobile(n.id)}
+                    className="shrink-0 text-base leading-none text-gray-400 hover:text-red-600"
+                    aria-label="메모 삭제"
+                  >
+                    🗑️
+                  </button>
+                </div>
+                <p className="mt-1.5 whitespace-pre-wrap text-gray-800">{n.content}</p>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -249,6 +333,16 @@ export function CardDetailView({
             })
           )}
         </ul>
+      </div>
+
+      <div className="mt-4 border-t border-gray-200 pt-3 md:hidden">
+        <button
+          type="button"
+          onClick={() => setMemoMode(true)}
+          className="w-full rounded-lg border border-gray-200 bg-white py-2.5 text-left text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-50"
+        >
+          📝 메모 보기 ›
+        </button>
       </div>
 
       <div className="mt-5 flex justify-end border-t border-gray-200 pt-3">

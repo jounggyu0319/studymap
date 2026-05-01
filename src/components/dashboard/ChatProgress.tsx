@@ -8,6 +8,7 @@ import {
   type CSSProperties,
   type RefObject,
 } from 'react'
+import type { Note } from '@/types/card'
 
 const PLACEHOLDERS = [
   "예: 'IO PPT 3 봤어' 또는 '통계 책 100p 읽었어'",
@@ -31,6 +32,8 @@ export interface UseChatProgressOptions {
   onExpandedChange?: (expanded: boolean) => void
   /** 상세 패널이 열린 카드 id — 없으면 생략 */
   activeCardId?: string | null
+  /** chat-progress에서 메모 저장 성공 시 */
+  onMemoSaved?: () => void
 }
 
 export interface ChatProgressApi {
@@ -62,6 +65,7 @@ export function useChatProgress({
   onSubtaskRemoved,
   onExpandedChange,
   activeCardId = null,
+  onMemoSaved,
 }: UseChatProgressOptions): ChatProgressApi {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
@@ -131,13 +135,16 @@ export function useChatProgress({
       if (data.subtaskRemoved === true && data.subtaskId != null) {
         onSubtaskRemoved?.(data.subtaskId)
       }
+      if (data.memoSaved === true) {
+        onMemoSaved?.()
+      }
     } catch {
       setMessages(prev => [...prev, { role: 'ai', text: '오류가 발생했어요. 다시 시도해주세요.' }])
     } finally {
       setIsLoading(false)
       inputRef.current?.focus()
     }
-  }, [input, isLoading, messages, onSubtaskProgress, onSubtaskRemoved, activeCardId])
+  }, [input, isLoading, messages, onSubtaskProgress, onSubtaskRemoved, activeCardId, onMemoSaved])
 
   return {
     messages,
@@ -316,5 +323,142 @@ export function ChatInputRowDesktop({ api }: { api: ChatProgressApi }) {
         전송
       </button>
     </div>
+  )
+}
+
+function formatNoteDate(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+export function DesktopProgressSidebar({
+  api,
+  activeCardId,
+  notesReloadVersion = 0,
+  onOpenUpload,
+}: {
+  api: ChatProgressApi
+  activeCardId: string | null
+  /** 메모 저장 시 증가시켜 목록 갱신 */
+  notesReloadVersion?: number
+  onOpenUpload: () => void
+}) {
+  const [mode, setMode] = useState<'chat' | 'memo'>('chat')
+  const [notes, setNotes] = useState<Note[]>([])
+
+  const loadNotes = useCallback(async () => {
+    if (!activeCardId) return
+    try {
+      const res = await fetch(`/api/notes?cardId=${encodeURIComponent(activeCardId)}`)
+      if (!res.ok) return
+      const data = (await res.json()) as { notes?: Note[] }
+      setNotes(Array.isArray(data.notes) ? data.notes : [])
+    } catch {
+      /* ignore */
+    }
+  }, [activeCardId])
+
+  useEffect(() => {
+    if (!activeCardId) {
+      setMode('chat')
+    }
+  }, [activeCardId])
+
+  useEffect(() => {
+    if (mode === 'memo' && activeCardId) {
+      void loadNotes()
+    }
+  }, [mode, activeCardId, loadNotes, notesReloadVersion])
+
+  const scrollRefMemo = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = scrollRefMemo.current
+    if (el && mode === 'memo') el.scrollTop = 0
+  }, [mode, notes])
+
+  const deleteNote = async (noteId: string) => {
+    const res = await fetch(`/api/notes/${noteId}`, { method: 'DELETE' })
+    if (res.ok) setNotes(prev => prev.filter(n => n.id !== noteId))
+  }
+
+  return (
+    <aside
+      className="sm-desktop-sidebar min-h-0 w-96 shrink-0 flex-col overflow-hidden border-l border-gray-200 bg-white"
+      style={{ colorScheme: 'light' }}
+    >
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
+        {mode === 'chat' ? (
+          <>
+            <span className="text-sm font-semibold text-gray-900">진척도 업데이트</span>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                disabled={!activeCardId}
+                onClick={() => setMode('memo')}
+                className="text-sm font-medium text-gray-700 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                📝 메모
+              </button>
+              <button
+                type="button"
+                onClick={onOpenUpload}
+                className="text-sm font-medium text-gray-700 hover:text-gray-900"
+              >
+                ＋ 새 할 일
+              </button>
+            </div>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setMode('chat')}
+            className="text-sm font-medium text-gray-800 hover:text-gray-900"
+          >
+            ← 채팅
+          </button>
+        )}
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col">
+        {mode === 'chat' ? (
+          <ChatMessageList api={api} variant="desktop" />
+        ) : (
+          <div
+            ref={scrollRefMemo}
+            className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto"
+            style={{ padding: '12px 14px', colorScheme: 'light' }}
+          >
+            {notes.length === 0 ? (
+              <p className="text-center text-sm text-gray-400">
+                아직 메모가 없어요. 채팅창에서 기록하면 여기에 나타나요.
+              </p>
+            ) : (
+              notes.map(n => (
+                <div
+                  key={n.id}
+                  className="rounded-lg border border-gray-100 bg-gray-50/80 px-3 py-2 text-[13px]"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="shrink-0 text-[11px] text-gray-400">
+                      {formatNoteDate(n.createdAt)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => void deleteNote(n.id)}
+                      className="shrink-0 text-base leading-none text-gray-400 hover:text-red-600"
+                      aria-label="메모 삭제"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                  <p className="mt-1.5 whitespace-pre-wrap text-gray-800">{n.content}</p>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+        <ChatInputRowDesktop api={api} />
+      </div>
+    </aside>
   )
 }

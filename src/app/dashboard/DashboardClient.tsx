@@ -7,7 +7,7 @@ import {
   useChatProgress,
   ChatMessageList,
   ChatInputRowMobile,
-  ChatInputRowDesktop,
+  DesktopProgressSidebar,
 } from '@/components/dashboard/ChatProgress'
 import PriorityRecommendation from '@/components/PriorityRecommendation'
 import { remainingDays } from '@/lib/priority'
@@ -37,6 +37,7 @@ export default function DashboardClient({
   const [chatExpanded, setChatExpanded] = useState(false)
   const [timeTab, setTimeTab] = useState<TimeFilterTab>('all')
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
+  const [notesRefreshKey, setNotesRefreshKey] = useState(0)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function mapCard(r: any): Card {
@@ -173,6 +174,7 @@ export default function DashboardClient({
       setSubtasks(prev => prev.filter(st => st.id !== subtaskId))
     },
     onExpandedChange: setChatExpanded,
+    onMemoSaved: () => setNotesRefreshKey(n => n + 1),
   })
 
   const doneFolderId = folders.find(f => f.name === '✅ 완료')?.id
@@ -440,31 +442,19 @@ export default function DashboardClient({
           timeTab={timeTab}
           selectedCardId={selectedCardId}
           onSelectCard={setSelectedCardId}
+          notesRefreshKey={notesRefreshKey}
         />
       </div>
     </main>
   )
 
   const desktopSidebar = (
-    <aside
-      className="sm-desktop-sidebar min-h-0 w-96 shrink-0 flex-col overflow-hidden border-l border-gray-200 bg-white"
-      style={{ colorScheme: 'light' }}
-    >
-      <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-3">
-        <span className="text-sm font-semibold text-gray-900">진척도 업데이트</span>
-        <button
-          type="button"
-          onClick={() => setIsPanelOpen(true)}
-          className="text-sm font-medium text-gray-700 hover:text-gray-900"
-        >
-          ＋ 새 할 일
-        </button>
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col">
-        <ChatMessageList api={chat} variant="desktop" />
-        <ChatInputRowDesktop api={chat} />
-      </div>
-    </aside>
+    <DesktopProgressSidebar
+      api={chat}
+      activeCardId={selectedCardId}
+      notesReloadVersion={notesRefreshKey}
+      onOpenUpload={() => setIsPanelOpen(true)}
+    />
   )
 
   const mobileChatChrome = (

@@ -54,3 +54,10 @@ export function calcProgress(subtasks: Subtask[]): number {
   const acc = subtasks.reduce((sum, s) => sum + s.weight * subtaskDoneFraction(s), 0)
   return Math.round((acc / total) * 100)
 }
+
+export interface Note {
+  id: string
+  cardId: string
+  content: string
+  createdAt: string
+}
