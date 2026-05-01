@@ -13,6 +13,16 @@ export default function LoginPage() {
     })
   }
 
+  const handleKakaoLogin = async () => {
+    const supabase = createClient()
+    await supabase.auth.signInWithOAuth({
+      provider: 'kakao',
+      options: {
+        redirectTo: `${location.origin}/auth/callback`,
+      },
+    })
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 w-full max-w-sm text-center">
@@ -29,6 +39,14 @@ export default function LoginPage() {
             <path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 1.83 5.4L4.5 7.49a4.77 4.77 0 0 1 4.48-3.3z"/>
           </svg>
           Google로 계속하기
+        </button>
+        <button
+          type="button"
+          onClick={handleKakaoLogin}
+          className="mt-3 w-full flex items-center justify-center px-4 py-3 rounded-xl text-sm font-medium transition-opacity hover:opacity-90"
+          style={{ backgroundColor: '#FEE500', color: '#000000' }}
+        >
+          카카오로 시작하기
         </button>
       </div>
     </div>
