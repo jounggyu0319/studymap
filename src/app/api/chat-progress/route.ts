@@ -74,7 +74,24 @@ targetCardId / targetSubtaskId를 현재 맥락으로 이어받아라.
   "confidence": 0.0~1.0,
   "message": "사용자에게 보낼 짧은 한국어 확인 메시지",
   "memoContent": "action이 memo일 때만 필수: 저장할 정제 본문"
-}`
+}
+
+## 복구 요청
+페이로드에 lastDeletedSubtask 필드가 있으면, 사용자가 "복구", "되돌려", "다시 넣어줘" 등을 말할 때:
+- action: "add_subtask"
+- targetCardId: lastDeletedSubtask.cardId
+- newSubtaskTitle: lastDeletedSubtask.title
+- progress: 0 (미언급 시 무조건 0)
+- 재확인·진행률 질문 절대 하지 말 것. 바로 실행.
+
+lastDeletedSubtask 없이 "복구해" 단답만 오면:
+- 직전 assistant 턴에서 삭제 언급이 있는지 history에서 확인
+- 있으면 위와 동일하게 add_subtask 즉시 실행 (progress: 0)
+- 그래도 특정 불가면 askClarification
+
+## add_subtask 진행률 기본값
+newSubtaskTitle만 있고 progress 미언급 → progress: 0 으로 고정. 진행률을 되묻지 말 것.
+`
 
 type ChatRole = 'user' | 'ai'
 
@@ -280,6 +297,7 @@ export async function POST(request: NextRequest) {
     activeCardId?: string | null
     confirmedDelete?: boolean
     targetSubtaskId?: string | null
+    lastDeletedSubtask?: { cardId: string; subtaskId: string; title: string } | null
   }
 
   if (body.confirmedDelete === true) {
@@ -382,6 +400,7 @@ export async function POST(request: NextRequest) {
     candidatesForProgress,
     candidatesForDelete,
     history: historyForModel(history),
+    ...(body.lastDeletedSubtask ? { lastDeletedSubtask: body.lastDeletedSubtask } : {}),
   }
 
   const userContent = `다음 JSON을 바탕으로 지시에 따라 응답 JSON만 출력하세요.\n\n${JSON.stringify(userPayload)}`

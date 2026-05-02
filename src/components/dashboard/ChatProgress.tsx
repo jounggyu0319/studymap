@@ -38,6 +38,7 @@ export interface UseChatProgressOptions {
   onMemoSaved?: () => void
   /** chat-progress에서 서브태스크 추가 성공 시 */
   onSubtaskAdded?: () => void
+  onSubtaskDeleted?: (info: { cardId: string; subtaskId: string; title: string }) => void
 }
 
 export interface ChatProgressApi {
@@ -107,10 +108,16 @@ export function useChatProgress({
   activeCardId = null,
   onMemoSaved,
   onSubtaskAdded,
+  onSubtaskDeleted,
 }: UseChatProgressOptions): ChatProgressApi {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [lastDeletedSubtask, setLastDeletedSubtask] = useState<{
+    cardId: string
+    subtaskId: string
+    title: string
+  } | null>(null)
   const [phIndex, setPhIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -179,8 +186,20 @@ export function useChatProgress({
           }),
         )
 
-        if (data.subtaskRemoved === true && data.subtaskId != null) {
-          onSubtaskRemoved?.(data.subtaskId)
+        if (data.subtaskRemoved === true) {
+          const deletedInfo = {
+            cardId: typeof data.cardId === 'string' ? data.cardId : '',
+            subtaskId:
+              typeof data.subtaskId === 'string' ? data.subtaskId : targetSubtaskId,
+            title: messages[messageIndex]?.pendingDelete?.subtaskName ?? '',
+          }
+          if (deletedInfo.cardId && deletedInfo.subtaskId && deletedInfo.title) {
+            setLastDeletedSubtask(deletedInfo)
+            onSubtaskDeleted?.(deletedInfo)
+          }
+          if (data.subtaskId != null) {
+            onSubtaskRemoved?.(data.subtaskId)
+          }
         }
       } catch {
         setMessages(prev => [...prev, { role: 'ai', text: '오류가 발생했어요. 다시 시도해주세요.' }])
@@ -189,7 +208,7 @@ export function useChatProgress({
         inputRef.current?.focus()
       }
     },
-    [activeCardId, isLoading, onSubtaskRemoved],
+    [activeCardId, isLoading, messages, onSubtaskRemoved, onSubtaskDeleted],
   )
 
   const send = useCallback(async () => {
@@ -207,6 +226,7 @@ export function useChatProgress({
         history: serializeHistoryForApi(historySnapshot),
       }
       if (activeCardId) body.activeCardId = activeCardId
+      if (lastDeletedSubtask) body.lastDeletedSubtask = lastDeletedSubtask
 
       const res = await fetch('/api/chat-progress', {
         method: 'POST',
@@ -272,6 +292,7 @@ export function useChatProgress({
         onMemoSaved?.()
       }
       if (data.subtaskAdded === true) {
+        setLastDeletedSubtask(null)
         onSubtaskAdded?.()
       }
     } catch {
@@ -289,6 +310,7 @@ export function useChatProgress({
     activeCardId,
     onMemoSaved,
     onSubtaskAdded,
+    lastDeletedSubtask,
   ])
 
   return {
