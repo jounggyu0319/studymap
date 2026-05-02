@@ -18,16 +18,12 @@ const JSON_SCHEMA_BLOCK = `## 출력 JSON 스키마
       "title": "할 일 제목",
       "type": "시험|퀴즈|과제|팀플|발표|실습|독서|보고서|기타",
       "dueDate": "YYYY-MM-DD 또는 null",
-      "weight": 0.0~1.0,
-      "weightReason": "근거",
-      "subtasks": [ { "title": "세부 단계", "weight": 0.0~1.0 } ]
+      "subtasks": [ { "title": "세부 단계" } ]
     }
   ],
   "missingInfo": ["누락 정보"],
   "confidence": 0.0~1.0
 }
-- 모든 items의 weight 합 = 1.0.
-- subtasks weight 정규화 불필요. 단일 항목은 보통 weight 1.
 - 【필수】 각 item의 subtasks는 **최소 1개**, 빈 배열 금지.
 - **출력 크기:** 불필요한 반복 없이 간결하게. **항목 전체에서 subtasks 합이 40개를 넘기지 말 것** (잘리면 실패함).
 - **JSON만** 출력.`
@@ -76,7 +72,7 @@ ${JSON_SCHEMA_BLOCK}
 ## 과제·공지 — **한 과제 = 카드 1개** (문제 번호는 서브태스크)
 - **Assignment #1**, **Homework 2**, **Problem Set 3**처럼 **하나의 제출물** 안에 **문제 1, 2, 3…** 또는 **1. 2. 3.** 목록이 있으면 → **items에는 카드 1개만** 넣을 것.
 - 그 카드의 **title**: \`{과목명} - {과제명}\` 형태 (예: "Mechanics of Materials - Assignment #1", "경제통계학 - 1차 과제").
-- **subtasks**: 각 문제를 한 줄씩 — 예: "Problem 1", "Problem 2", "문항 1", "2번" 등 문서 표기에 맞춤. weight는 보통 각 1.
+- **subtasks**: 각 문제를 한 줄씩 — 예: "Problem 1", "Problem 2", "문항 1", "2번" 등 문서 표기에 맞춤.
 - **금지:** 같은 마감일·같은 과제 묶음인데 문제마다 **별도 item(별도 카드)** 로 쪼개기.
 - **예외 — 별도 카드로 분리:** **서로 다른 과제**(Assignment #1 vs #2)이거나 **마감일이 명확히 다름** → item을 나눔.
 - 회차만 다르고 각각 마감이 정해진 **주차별 HW** 등은 기존처럼 item 여러 개 가능.
@@ -302,9 +298,9 @@ export async function POST(request: NextRequest) {
         title: string
         type: CardType
         dueDate: string | null
-        weight: number
-        weightReason: string
-        subtasks: Array<{ title: string; weight: number }>
+        weight?: number
+        weightReason?: string
+        subtasks?: Array<{ title: string; weight?: number }>
       }>
       missingInfo?: string[]
       confidence?: number
@@ -328,9 +324,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'AI 응답 형식이 올바르지 않아요.' }, { status: 500 })
     }
 
+    const normalizedItems = parsed.items.map(item => {
+      const rawSubs = Array.isArray(item.subtasks) ? item.subtasks : []
+      return {
+        title: item.title,
+        type: item.type,
+        dueDate: item.dueDate ?? null,
+        weight: 1,
+        weightReason: '',
+        subtasks: rawSubs.map(st => ({
+          title: typeof st.title === 'string' ? st.title : '',
+          weight: 1,
+        })),
+      }
+    })
+
     const normalized = {
       subject: typeof parsed.subject === 'string' ? parsed.subject : '과목',
-      items: parsed.items,
+      items: normalizedItems,
       missingInfo: Array.isArray(parsed.missingInfo) ? parsed.missingInfo : [],
       confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0,
     }
