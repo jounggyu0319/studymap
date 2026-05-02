@@ -7,7 +7,6 @@ export const runtime = 'nodejs'
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 const CONFIDENCE_MIN_PROGRESS = 0.6
-const CONFIDENCE_MIN_DELETE = 0.85
 
 const SYSTEM_PROMPT = `당신은 학습 진척 관리 AI입니다.
 사용자 발화에서 어느 카드(과목/과제)의 어느 서브태스크를 얼마나 완료했는지 파악하고,
@@ -444,8 +443,27 @@ export async function POST(request: NextRequest) {
       targetSubtaskId = null
     }
 
-    const minConfidence = action === 'remove_subtask' ? CONFIDENCE_MIN_DELETE : CONFIDENCE_MIN_PROGRESS
-    const lowConfidence = confidence < minConfidence
+    if (action === 'remove_subtask') {
+      if (targetSubtaskId) {
+        const subtaskName = formatPendingDeleteLabel(subtasksRec, cardById, targetSubtaskId)
+        return NextResponse.json({
+          pendingDelete: true,
+          targetSubtaskId,
+          subtaskName,
+          message: `${subtaskName}을(를) 삭제할까요?`,
+          matched: true,
+          progressApplied: false,
+        })
+      }
+      return NextResponse.json({
+        matched: false,
+        progressApplied: false,
+        needClarification: true,
+        message: '어떤 서브태스크를 삭제할까요? 카드 이름과 함께 정확히 말해줘.',
+      })
+    }
+
+    const lowConfidence = confidence < CONFIDENCE_MIN_PROGRESS
 
     if (lowConfidence) {
       return NextResponse.json({
@@ -518,22 +536,6 @@ export async function POST(request: NextRequest) {
         subtaskId: null,
         confidence,
         message: aiMessage,
-      })
-    }
-
-    if (action === 'remove_subtask') {
-      const subtaskName = formatPendingDeleteLabel(subtasksRec, cardById, targetSubtaskId)
-      const trimmedModelMsg =
-        typeof parsed.message === 'string' && parsed.message.trim() ? parsed.message.trim() : ''
-      const confirmMessage = trimmedModelMsg || `${subtaskName}을(를) 삭제할까요?`
-      return NextResponse.json({
-        pendingDelete: true,
-        targetSubtaskId,
-        subtaskName,
-        message: confirmMessage,
-        matched: true,
-        progressApplied: false,
-        confidence,
       })
     }
 
