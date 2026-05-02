@@ -48,7 +48,7 @@ export default function ManualModal({ open, onClose }: ManualModalProps) {
         </button>
 
         <h1 id="manual-modal-title" className="pr-10 text-xl font-bold text-gray-900">
-          스터디맵 사용 설명서
+          한눈 사용 설명서
         </h1>
 
         <div className="mt-6 space-y-4 text-sm text-gray-600">
@@ -137,7 +137,7 @@ export default function ManualModal({ open, onClose }: ManualModalProps) {
                 <section>
                   <h3 className="font-semibold text-gray-900">6. 앱으로 설치하기</h3>
                   <p className="mt-2">
-                    스터디맵은 웹앱이지만 홈 화면이나 독에 추가해 앱처럼 사용할 수 있습니다.
+                    한눈은 웹앱이지만 홈 화면이나 독에 추가해 앱처럼 사용할 수 있습니다.
                   </p>
                   <div className="mt-3 space-y-3">
                     <div>

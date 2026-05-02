@@ -26,8 +26,8 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 w-full max-w-sm text-center">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">스터디맵</h1>
-        <p className="text-sm text-gray-500 mb-8">할 일을 자동으로 정리해드립니다</p>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">한눈</h1>
+        <p className="text-sm text-gray-500 mb-8">AI가 한눈에 관리해주는 할 일</p>
         <button
           onClick={handleGoogleLogin}
           className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"

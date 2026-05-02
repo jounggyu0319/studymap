@@ -13,20 +13,20 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "스터디맵",
-  description: "할 일을 자동으로 정리해드립니다",
+  title: "한눈",
+  description: "AI가 한눈에 관리해주는 할 일",
   manifest: "/manifest.json",
   themeColor: "#111827",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "스터디맵",
+    title: "한눈",
   },
   openGraph: {
-    title: "스터디맵",
-    description: "할 일을 자동으로 정리해드립니다",
+    title: "한눈",
+    description: "AI가 한눈에 관리해주는 할 일",
     url: "https://studymap-kohl.vercel.app",
-    siteName: "스터디맵",
+    siteName: "한눈",
   },
 };
 

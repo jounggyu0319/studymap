@@ -1,7 +1,7 @@
 {
-  "name": "스터디맵",
-  "short_name": "스터디맵",
-  "description": "할 일을 자동으로 정리해드립니다",
+  "name": "한눈",
+  "short_name": "한눈",
+  "description": "AI가 한눈에 관리해주는 할 일",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#f3f4f6",

@@ -37,7 +37,10 @@ export default function Header({ user }: { user: User }) {
   return (
     <>
       <header className="flex h-14 items-center justify-between border-b border-[#e5e7eb] bg-white px-6">
-        <span className="font-bold text-gray-900">스터디맵</span>
+        <div className="flex items-baseline gap-2">
+          <span className="font-bold text-gray-900">한눈</span>
+          <span className="text-xs text-gray-400">AI가 한눈에 관리해주는 할 일</span>
+        </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-600">
             {user.user_metadata?.full_name ?? user.email}
