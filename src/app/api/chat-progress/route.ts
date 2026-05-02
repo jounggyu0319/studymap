@@ -6,11 +6,16 @@ export const runtime = 'nodejs'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-const CONFIDENCE_MIN_WRITE = 0.6
+const CONFIDENCE_MIN_PROGRESS = 0.6
+const CONFIDENCE_MIN_DELETE = 0.85
 
 const SYSTEM_PROMPT = `당신은 학습 진척 관리 AI입니다.
 사용자 발화에서 어느 카드(과목/과제)의 어느 서브태스크를 얼마나 완료했는지 파악하고,
 아래 JSON 형식으로만 응답하세요. 다른 텍스트는 절대 포함하지 마세요.
+
+페이로드에 후보가 두 벌 있습니다.
+- candidatesForProgress: 진행률 갱신(progressUpdate) 등에 사용. priority: "high"인 카드·서브태스크를 우선 매칭 후보로 사용할 것.
+- candidatesForDelete: 서브태스크 삭제(remove_subtask) 전용. 서브태스크 삭제 시에는 반드시 candidatesForDelete 목록에 있는 서브태스크 id만 targetSubtaskId로 선택할 것. candidatesForProgress만 보고 삭제 대상을 고르지 마세요.
 
 ## 카드 매칭
 1. activeCardId가 제공되면 해당 카드를 1순위로 고려
@@ -18,6 +23,17 @@ const SYSTEM_PROMPT = `당신은 학습 진척 관리 AI입니다.
    - "3장" → subtasks에 "3장" 포함 카드
    - "논문", "PPT", "1번 문제" 등도 동일하게 추론
 3. 유일하게 특정되면 confidence 0.9+, 2개 이상 매칭이면 confidence 0.5 이하
+4. progressUpdate 시 priority: high 후보를 먼저 검토한 뒤 필요 시 나머지 후보를 사용할 것
+
+## confidence 보정 기준
+- 과거 완료 동사 있음("했어", "봤어", "읽었어", "끝냈어", "완료" 등) → progressUpdate에 어울리면 confidence 0.8~1.0
+- 명사/동사 원형만 있음("복습", "공부", "확인" 등 완료 시제 없음) → progressUpdate로 단정하지 말고 memo 또는 askClarification, confidence 0.3~0.5
+- 미래/의지 표현("해야겠어", "볼게", "해야겠다") → action: "memo" 또는 "askClarification", 완료로 처리하지 말 것
+
+예시:
+- "통계 10장 읽었어" → progressUpdate, confidence: 0.9
+- "통계 10장 복습" → memo 또는 askClarification, confidence: 0.4
+- "오늘 통계 해야겠다" → memo, confidence: 0.9
 
 ## carry-forward
 history 배열에서 마지막으로 progressApplied: true인 assistant 턴의
@@ -34,6 +50,7 @@ targetCardId / targetSubtaskId를 현재 맥락으로 이어받아라.
 
 ## 삭제 요청
 "삭제해줘", "없애줘", "빼줘" 등 서브태스크 제거 의도 → action: "remove_subtask"
+(remove_subtask일 때 targetSubtaskId는 candidatesForDelete에 포함된 id만 사용)
 
 ## 메모 저장
 사용자가 나중에 다시 보고 싶은 정보만 남기려는 경우 → action: "memo"
@@ -166,6 +183,67 @@ function buildCandidatesPayload(
   })
 }
 
+type Priority = 'high' | 'normal'
+
+type CandidateSubtaskWithPriority = CandidateSubtask & { priority: Priority }
+type CandidateCardWithPriority = Omit<CandidateCard, 'subtasks'> & {
+  priority: Priority
+  subtasks: CandidateSubtaskWithPriority[]
+}
+
+function buildCandidatesForProgress(
+  cards: Array<Record<string, unknown>>,
+  subtasks: Array<Record<string, unknown>>,
+  activeCardId: string | null,
+  cardById: Map<string, unknown>,
+): CandidateCardWithPriority[] {
+  const base = buildCandidatesPayload(cards, subtasks)
+  const effActive = activeCardId && cardById.has(activeCardId) ? activeCardId : null
+  return base.map(card => ({
+    ...card,
+    priority: effActive && card.id === effActive ? 'high' : 'normal',
+    subtasks: card.subtasks.map(st => ({
+      ...st,
+      priority: effActive && card.id === effActive ? 'high' : 'normal',
+    })),
+  }))
+}
+
+function buildCandidatesForDelete(
+  cards: Array<Record<string, unknown>>,
+  subtasks: Array<Record<string, unknown>>,
+  activeCardId: string | null,
+  cardById: Map<string, unknown>,
+): CandidateCard[] {
+  if (activeCardId && cardById.has(activeCardId)) {
+    const oneCard = cards.filter(c => String(c.id) === activeCardId)
+    return buildCandidatesPayload(oneCard, subtasks)
+  }
+  return buildCandidatesPayload(cards, subtasks)
+}
+
+function collectSubtaskIdsFromCandidates(candidateCards: CandidateCard[]): Set<string> {
+  const ids = new Set<string>()
+  for (const c of candidateCards) {
+    for (const st of c.subtasks) ids.add(st.id)
+  }
+  return ids
+}
+
+function formatPendingDeleteLabel(
+  subtasksRows: Array<Record<string, unknown>>,
+  cardById: Map<string, Record<string, unknown>>,
+  targetSubtaskId: string,
+): string {
+  const st = subtasksRows.find(s => String(s.id) === targetSubtaskId)
+  if (!st) return '서브태스크'
+  const card = cardById.get(String(st.card_id))
+  const subject = card ? String(card.subject ?? '').trim() : ''
+  const title = String(st.title ?? '').trim()
+  if (subject && title) return `${subject} — ${title}`
+  return title || subject || '서브태스크'
+}
+
 function historyForModel(history: HistoryTurn[]): unknown[] {
   return history.slice(-12).map(h => {
     const base: Record<string, unknown> = {
@@ -192,7 +270,56 @@ export async function POST(request: NextRequest) {
     message?: string
     history?: unknown
     activeCardId?: string | null
+    confirmedDelete?: boolean
+    targetSubtaskId?: string | null
   }
+
+  if (body.confirmedDelete === true) {
+    const confirmId =
+      typeof body.targetSubtaskId === 'string' && body.targetSubtaskId.length > 0
+        ? body.targetSubtaskId.trim()
+        : null
+    if (!confirmId) {
+      return NextResponse.json({ error: '삭제 대상이 없어요.' }, { status: 400 })
+    }
+
+    const { data: stRow, error: stErr } = await supabase
+      .from('subtasks')
+      .select('id, card_id')
+      .eq('id', confirmId)
+      .maybeSingle()
+
+    if (stErr || !stRow) {
+      return NextResponse.json({ error: '항목을 찾을 수 없어요.' }, { status: 404 })
+    }
+
+    const { data: ownCard } = await supabase
+      .from('cards')
+      .select('id')
+      .eq('id', stRow.card_id)
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (!ownCard) {
+      return NextResponse.json({ error: '권한이 없어요.' }, { status: 403 })
+    }
+
+    const { error: delErr } = await supabase.from('subtasks').delete().eq('id', confirmId)
+    if (delErr) {
+      console.error('[chat-progress] subtask delete confirmed', delErr)
+      return NextResponse.json({ error: '서브태스크를 삭제하지 못했어요.' }, { status: 500 })
+    }
+
+    return NextResponse.json({
+      matched: true,
+      subtaskRemoved: true,
+      progressApplied: true,
+      cardId: stRow.card_id,
+      subtaskId: confirmId,
+      message: '삭제했어요.',
+    })
+  }
+
   const message = typeof body.message === 'string' ? body.message : ''
   const history = parseHistory(body.history)
   const activeCardId =
@@ -204,7 +331,9 @@ export async function POST(request: NextRequest) {
 
   const { data: cards } = await supabase.from('cards').select('*').eq('user_id', user.id)
   const cardIds = (cards ?? []).map((c: { id: string }) => c.id)
-  const cardById = new Map((cards ?? []).map((c: { id: string }) => [c.id, c]))
+  const cardById = new Map(
+    (cards ?? []).map((c: { id: string }) => [c.id, c as Record<string, unknown>]),
+  )
 
   const { data: subtasks } = await supabase
     .from('subtasks')
@@ -221,15 +350,29 @@ export async function POST(request: NextRequest) {
     })
   }
 
-  const candidates = buildCandidatesPayload(
-    (cards ?? []) as Record<string, unknown>[],
-    (subtasks ?? []) as Record<string, unknown>[],
+  const cardsRec = (cards ?? []) as Record<string, unknown>[]
+  const subtasksRec = (subtasks ?? []) as Record<string, unknown>[]
+  const effectiveActive = activeCardId && cardById.has(activeCardId) ? activeCardId : null
+
+  const candidatesForProgress = buildCandidatesForProgress(
+    cardsRec,
+    subtasksRec,
+    effectiveActive,
+    cardById,
   )
+  const candidatesForDelete = buildCandidatesForDelete(
+    cardsRec,
+    subtasksRec,
+    effectiveActive,
+    cardById,
+  )
+  const deleteAllowedIds = collectSubtaskIdsFromCandidates(candidatesForDelete)
 
   const userPayload = {
     userMessage: effectiveMessage,
-    activeCardId: activeCardId && cardById.has(activeCardId) ? activeCardId : null,
-    candidates,
+    activeCardId: effectiveActive,
+    candidatesForProgress,
+    candidatesForDelete,
     history: historyForModel(history),
   }
 
@@ -297,7 +440,12 @@ export async function POST(request: NextRequest) {
         ? targetCardId
         : null
 
-    const lowConfidence = confidence < CONFIDENCE_MIN_WRITE
+    if (action === 'remove_subtask' && targetSubtaskId && !deleteAllowedIds.has(targetSubtaskId)) {
+      targetSubtaskId = null
+    }
+
+    const minConfidence = action === 'remove_subtask' ? CONFIDENCE_MIN_DELETE : CONFIDENCE_MIN_PROGRESS
+    const lowConfidence = confidence < minConfidence
 
     if (lowConfidence) {
       return NextResponse.json({
@@ -374,19 +522,18 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'remove_subtask') {
-      const { error: delErr } = await supabase.from('subtasks').delete().eq('id', targetSubtaskId)
-      if (delErr) {
-        console.error('[chat-progress] subtask delete', delErr)
-        return NextResponse.json({ error: '서브태스크를 삭제하지 못했어요.' }, { status: 500 })
-      }
+      const subtaskName = formatPendingDeleteLabel(subtasksRec, cardById, targetSubtaskId)
+      const trimmedModelMsg =
+        typeof parsed.message === 'string' && parsed.message.trim() ? parsed.message.trim() : ''
+      const confirmMessage = trimmedModelMsg || `${subtaskName}을(를) 삭제할까요?`
       return NextResponse.json({
+        pendingDelete: true,
+        targetSubtaskId,
+        subtaskName,
+        message: confirmMessage,
         matched: true,
-        subtaskRemoved: true,
-        progressApplied: true,
-        cardId: resolvedCardId,
-        subtaskId: targetSubtaskId,
+        progressApplied: false,
         confidence,
-        message: aiMessage,
       })
     }
 

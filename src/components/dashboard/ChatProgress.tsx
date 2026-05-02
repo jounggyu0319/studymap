@@ -23,6 +23,8 @@ export interface ChatMessage {
   progressApplied?: boolean
   targetCardId?: string | null
   targetSubtaskId?: string | null
+  /** 서버가 삭제 확인을 요청한 assistant 턴 */
+  pendingDelete?: { targetSubtaskId: string; subtaskName: string }
 }
 
 export interface UseChatProgressOptions {
@@ -46,6 +48,8 @@ export interface ChatProgressApi {
   phIndex: number
   inputRef: RefObject<HTMLInputElement | null>
   scrollRef: RefObject<HTMLDivElement | null>
+  confirmPendingDelete: (messageIndex: number, targetSubtaskId: string) => Promise<void>
+  cancelPendingDelete: (messageIndex: number) => void
 }
 
 function serializeHistoryForApi(messages: ChatMessage[]): unknown[] {
@@ -92,6 +96,65 @@ export function useChatProgress({
     if (el) el.scrollTop = el.scrollHeight
   }, [messages, isLoading])
 
+  const cancelPendingDelete = useCallback((messageIndex: number) => {
+    setMessages(prev =>
+      prev.map((m, i) => (i === messageIndex ? { ...m, pendingDelete: undefined } : m)),
+    )
+  }, [])
+
+  const confirmPendingDelete = useCallback(
+    async (messageIndex: number, targetSubtaskId: string) => {
+      if (isLoading) return
+      setIsLoading(true)
+      try {
+        const body: Record<string, unknown> = {
+          confirmedDelete: true,
+          targetSubtaskId,
+        }
+        if (activeCardId) body.activeCardId = activeCardId
+
+        const res = await fetch('/api/chat-progress', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        const data = await res.json()
+
+        if (data.error) {
+          setMessages(prev => [...prev, { role: 'ai', text: data.error }])
+          return
+        }
+
+        setMessages(prev =>
+          prev.map((m, i) => {
+            if (i !== messageIndex) return m
+            const sid =
+              typeof data.subtaskId === 'string' && data.subtaskId.length > 0
+                ? data.subtaskId
+                : targetSubtaskId
+            return {
+              role: 'ai',
+              text: typeof data.message === 'string' ? data.message : '삭제했어요.',
+              progressApplied: true,
+              ...(data.cardId != null ? { targetCardId: data.cardId as string } : {}),
+              targetSubtaskId: sid,
+            }
+          }),
+        )
+
+        if (data.subtaskRemoved === true && data.subtaskId != null) {
+          onSubtaskRemoved?.(data.subtaskId)
+        }
+      } catch {
+        setMessages(prev => [...prev, { role: 'ai', text: '오류가 발생했어요. 다시 시도해주세요.' }])
+      } finally {
+        setIsLoading(false)
+        inputRef.current?.focus()
+      }
+    },
+    [activeCardId, isLoading, onSubtaskRemoved],
+  )
+
   const send = useCallback(async () => {
     const text = input.trim()
     if (!text || isLoading) return
@@ -117,6 +180,23 @@ export function useChatProgress({
 
       if (data.error) {
         setMessages(prev => [...prev, { role: 'ai', text: data.error }])
+        return
+      }
+
+      if (
+        data.pendingDelete === true &&
+        typeof data.targetSubtaskId === 'string' &&
+        data.targetSubtaskId
+      ) {
+        const subtaskName = typeof data.subtaskName === 'string' ? data.subtaskName : ''
+        setMessages(prev => [
+          ...prev,
+          {
+            role: 'ai',
+            text: typeof data.message === 'string' ? data.message : '삭제할까요?',
+            pendingDelete: { targetSubtaskId: data.targetSubtaskId, subtaskName },
+          },
+        ])
         return
       }
 
@@ -156,6 +236,8 @@ export function useChatProgress({
     phIndex,
     inputRef,
     scrollRef,
+    confirmPendingDelete,
+    cancelPendingDelete,
   }
 }
 
@@ -210,8 +292,30 @@ export function ChatMessageList({
               <span style={{ ...bubbleUserBase, maxWidth: userMax, alignSelf: 'flex-end' }}>{m.text}</span>
             </div>
           ) : (
-            <div key={i} className="flex w-full justify-start">
+            <div key={i} className="flex w-full flex-col items-start gap-1.5">
               <p style={{ ...textAi, maxWidth: aiMax }}>{m.text}</p>
+              {m.pendingDelete && (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={api.isLoading}
+                    onClick={() =>
+                      void api.confirmPendingDelete(i, m.pendingDelete!.targetSubtaskId)
+                    }
+                    className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-[12px] font-medium text-red-800 hover:bg-red-100 disabled:opacity-40"
+                  >
+                    삭제 확인
+                  </button>
+                  <button
+                    type="button"
+                    disabled={api.isLoading}
+                    onClick={() => api.cancelPendingDelete(i)}
+                    className="rounded-md border border-gray-200 bg-white px-2.5 py-1 text-[12px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+                  >
+                    취소
+                  </button>
+                </div>
+              )}
             </div>
           ),
         )}
@@ -236,8 +340,30 @@ export function ChatMessageList({
             <span style={{ ...bubbleUserBase, maxWidth: userMax }}>{m.text}</span>
           </div>
         ) : (
-          <div key={i} className="flex justify-start">
+          <div key={i} className="flex flex-col items-start gap-1.5">
             <p style={{ ...textAi, maxWidth: aiMax }}>{m.text}</p>
+            {m.pendingDelete && (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={api.isLoading}
+                  onClick={() =>
+                    void api.confirmPendingDelete(i, m.pendingDelete!.targetSubtaskId)
+                  }
+                  className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-[12px] font-medium text-red-800 hover:bg-red-100 disabled:opacity-40"
+                >
+                  삭제 확인
+                </button>
+                <button
+                  type="button"
+                  disabled={api.isLoading}
+                  onClick={() => api.cancelPendingDelete(i)}
+                  className="rounded-md border border-gray-200 bg-white px-2.5 py-1 text-[12px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+                >
+                  취소
+                </button>
+              </div>
+            )}
           </div>
         ),
       )}
