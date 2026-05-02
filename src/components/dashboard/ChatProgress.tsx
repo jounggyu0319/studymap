@@ -36,6 +36,8 @@ export interface UseChatProgressOptions {
   activeCardId?: string | null
   /** chat-progress에서 메모 저장 성공 시 */
   onMemoSaved?: () => void
+  /** chat-progress에서 서브태스크 추가 성공 시 */
+  onSubtaskAdded?: () => void
 }
 
 export interface ChatProgressApi {
@@ -104,6 +106,7 @@ export function useChatProgress({
   onExpandedChange,
   activeCardId = null,
   onMemoSaved,
+  onSubtaskAdded,
 }: UseChatProgressOptions): ChatProgressApi {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
@@ -268,13 +271,25 @@ export function useChatProgress({
       if (data.memoSaved === true) {
         onMemoSaved?.()
       }
+      if (data.subtaskAdded === true) {
+        onSubtaskAdded?.()
+      }
     } catch {
       setMessages(prev => [...prev, { role: 'ai', text: '오류가 발생했어요. 다시 시도해주세요.' }])
     } finally {
       setIsLoading(false)
       inputRef.current?.focus()
     }
-  }, [input, isLoading, messages, onSubtaskProgress, onSubtaskRemoved, activeCardId, onMemoSaved])
+  }, [
+    input,
+    isLoading,
+    messages,
+    onSubtaskProgress,
+    onSubtaskRemoved,
+    activeCardId,
+    onMemoSaved,
+    onSubtaskAdded,
+  ])
 
   return {
     messages,

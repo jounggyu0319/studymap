@@ -175,6 +175,7 @@ export default function DashboardClient({
     },
     onExpandedChange: setChatExpanded,
     onMemoSaved: () => setNotesRefreshKey(n => n + 1),
+    onSubtaskAdded: () => void refreshData(),
   })
 
   const doneFolderId = folders.find(f => f.name === '✅ 완료')?.id

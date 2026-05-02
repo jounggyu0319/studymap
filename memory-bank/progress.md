@@ -112,7 +112,42 @@
 ## 저장소
 - GitHub: **`jounggyu0319/studymap`** (`main`), SSH 키 인증, Vercel 자동 재배포
 
+## Haiku 일임 방식 전환 ✅ (2026-04-30)
+- `chat-progress` TypeScript 추론 규칙 전부 제거 → SYSTEM_PROMPT가 카드 매칭·진척 판단·삭제 의도 전부 처리
+- TypeScript는 `buildEffectiveUserMessage` + confidence gate + DB 실행만
+- `activeCardId` 요청 본문 추가 → 상세 패널 열린 카드 우선 컨텍스트
+
+## 카카오 로그인 추가 ✅ (2026-04-30)
+- `src/app/login/page.tsx` — 카카오 버튼 추가 (`#FEE500` / `supabase.auth.signInWithOAuth({ provider: 'kakao' })`)
+- 카카오 개발자 콘솔: 개인 개발자 비즈 앱 전환 → 심사 없이 외부 사용자 로그인 가능
+- KOE004(로그인 활성화 ON), KOE205(동의항목 이메일 필수) 오류 해결
+
+## 모바일 FAB 겹침 버그 수정 ✅ (2026-04-30)
+- `CardDetailView` 래퍼에 `pb-40 md:pb-0` 추가 → 삭제 버튼이 하단 FAB에 가려지는 문제 해결
+
+## 탭 복귀 자동 새로고침 ✅ (2026-04-30)
+- `DashboardClient`에 `visibilitychange` 이벤트 리스너 추가
+- 탭 포커스 복귀 시 백그라운드로 `refreshData()` 실행 → 깜빡임 없이 데이터 갱신
+
+## 완료 카드 자동 이동 ✅ (2026-04-30)
+- 모든 서브태스크 진척률 100% 도달 시 → `getOrCreateDoneFolder()` → PATCH `folder_id`
+- `✅ 완료` 폴더: 전체 탭 `filteredCards`에서 제외, 탭 목록 항상 맨 마지막, 삭제 버튼 없음
+
+## 메모 기능 구현 ✅ (2026-05-02)
+- **DB:** `notes` 테이블 (id, user_id, card_id, content, created_at) + RLS
+- **API:** `GET/POST /api/notes`, `DELETE /api/notes/[id]`
+- **Haiku:** `action: "memo"` 추가 — "메모해줘", "저장해줘", 정보성 문장 등 판단 → `memoContent` 정제 저장
+- **데스크톱:** ChatProgress 사이드바 "📝 메모" 버튼 → 메모 모드 전환, 목록·삭제, `notesReloadVersion`으로 자동 갱신
+- **모바일:** `CardDetailView` 서브태스크 아래 "📝 메모 보기 ›" → 메모 하위 페이지(뒤로 가기 포함)
+- **연결:** `DashboardClient` `notesRefreshKey` → `CardTimeline` → `CardDetailView` prop 전달
+
+## 이슈 트래커 생성 ✅ (2026-05-02)
+- `memory-bank/issues.md` 신규 생성
+- 채팅 인식 버그 7건 + UI/가중치 1건 + 기능 부재 2건 문서화
+- 상세 내용: `memory-bank/issues.md` 참고
+
 ## 알려진 이슈 / 다음 할 일
+- [ ] **채팅 인식 개선** — `memory-bank/issues.md` CHAT-01~06 참고 (activeCardId 무시, 과거형 판단, 번호 혼동 등)
 - [ ] **syllabus 추출 실사용 테스트 미완료** ← 다양한 강의계획서로 추출 품질 검증 필요 (핵심 미완성 항목)
 - [ ] goal 추출 실사용 테스트
 - [ ] Problem Sets 추출 프롬프트 지속 다듬기
