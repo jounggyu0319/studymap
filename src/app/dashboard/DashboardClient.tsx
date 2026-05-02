@@ -289,7 +289,7 @@ export default function DashboardClient({
     <main
       className="sm-main-col flex min-h-0 w-full flex-1 flex-col overflow-hidden"
       style={{
-        paddingBottom: chatExpanded ? '128px' : '68px',
+        paddingBottom: chatExpanded ? 'calc(min(42vh, 260px) + 8px)' : '68px',
         transition: 'padding-bottom 0.2s ease',
       }}
     >
@@ -465,8 +465,8 @@ export default function DashboardClient({
           backgroundColor: '#ffffff',
           borderTop: '2px solid #e5e7eb',
           boxShadow: '0 -4px 16px rgba(0,0,0,0.08)',
-          height: chatExpanded ? '120px' : '60px',
-          minHeight: chatExpanded ? '120px' : '60px',
+          height: chatExpanded ? 'min(42vh, 260px)' : '60px',
+          minHeight: chatExpanded ? 'min(42vh, 260px)' : '60px',
           transition: 'height 0.2s ease, min-height 0.2s ease',
           colorScheme: 'light',
         }}
@@ -484,7 +484,7 @@ export default function DashboardClient({
         onClick={() => setIsPanelOpen(true)}
         className="sm-mobile-chat pointer-events-auto fixed right-6 z-[60] rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-colors hover:bg-blue-700"
         style={{
-          bottom: chatExpanded ? '130px' : '70px',
+          bottom: chatExpanded ? 'calc(min(42vh, 260px) + 10px)' : '70px',
           transition: 'bottom 0.2s ease',
         }}
         aria-label="새 할 일 추가"

@@ -64,6 +64,40 @@ function serializeHistoryForApi(messages: ChatMessage[]): unknown[] {
   })
 }
 
+/** API/프록시에 따라 pendingDelete·id 타입이 달라질 수 있어 정규화 */
+function parsePendingDeletePayload(raw: unknown): {
+  targetSubtaskId: string
+  subtaskName: string
+  message: string
+} | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const data = raw as Record<string, unknown>
+  const flag = data.pendingDelete
+  const isPending =
+    flag === true ||
+    flag === 1 ||
+    (typeof flag === 'string' && ['true', '1', 'yes'].includes(flag.toLowerCase()))
+
+  if (!isPending) return null
+
+  const rid = data.targetSubtaskId
+  let targetSubtaskId = ''
+  if (typeof rid === 'string' && rid.trim()) targetSubtaskId = rid.trim()
+  else if (typeof rid === 'number' && Number.isFinite(rid)) targetSubtaskId = String(rid)
+
+  if (!targetSubtaskId) return null
+
+  const subtaskName = typeof data.subtaskName === 'string' ? data.subtaskName : ''
+  const message =
+    typeof data.message === 'string' && data.message.trim()
+      ? data.message.trim()
+      : subtaskName
+        ? `${subtaskName}을(를) 삭제할까요?`
+        : '삭제할까요?'
+
+  return { targetSubtaskId, subtaskName, message }
+}
+
 export function useChatProgress({
   onSubtaskProgress,
   onSubtaskRemoved,
@@ -176,43 +210,59 @@ export function useChatProgress({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      const data = await res.json()
+      const data = (await res.json()) as Record<string, unknown>
 
-      if (data.error) {
-        setMessages(prev => [...prev, { role: 'ai', text: data.error }])
+      if (process.env.NODE_ENV === 'development') {
+        console.debug('[useChatProgress] /api/chat-progress response', {
+          pendingDelete: data.pendingDelete,
+          typeofPendingDelete: typeof data.pendingDelete,
+          targetSubtaskId: data.targetSubtaskId,
+          typeofTargetSubtaskId: typeof data.targetSubtaskId,
+          message: data.message,
+        })
+      }
+
+      if (typeof data.error === 'string' && data.error) {
+        const errText = data.error
+        setMessages(prev => [...prev, { role: 'ai', text: errText }])
         return
       }
 
-      if (
-        data.pendingDelete === true &&
-        typeof data.targetSubtaskId === 'string' &&
-        data.targetSubtaskId
-      ) {
-        const subtaskName = typeof data.subtaskName === 'string' ? data.subtaskName : ''
+      const pending = parsePendingDeletePayload(data)
+      if (pending) {
+        if (process.env.NODE_ENV === 'development') {
+          console.debug('[useChatProgress] pendingDelete branch — appending message with buttons', pending)
+        }
         setMessages(prev => [
           ...prev,
           {
             role: 'ai',
-            text: typeof data.message === 'string' ? data.message : '삭제할까요?',
-            pendingDelete: { targetSubtaskId: data.targetSubtaskId, subtaskName },
+            text: pending.message,
+            pendingDelete: {
+              targetSubtaskId: pending.targetSubtaskId,
+              subtaskName: pending.subtaskName,
+            },
           },
         ])
         return
       }
 
       const dbApplied = Boolean(data.progressApplied) || Boolean(data.subtaskRemoved)
-      const aiPayload: ChatMessage = { role: 'ai', text: data.message }
-      if (dbApplied && (data.cardId != null || data.subtaskId != null)) {
+      const aiPayload: ChatMessage = {
+        role: 'ai',
+        text: typeof data.message === 'string' ? data.message : '',
+      }
+      if (dbApplied && (typeof data.cardId === 'string' || typeof data.subtaskId === 'string')) {
         aiPayload.progressApplied = true
-        if (data.cardId != null) aiPayload.targetCardId = data.cardId
-        if (data.subtaskId != null) aiPayload.targetSubtaskId = data.subtaskId
+        if (typeof data.cardId === 'string') aiPayload.targetCardId = data.cardId
+        if (typeof data.subtaskId === 'string') aiPayload.targetSubtaskId = data.subtaskId
       }
       setMessages(prev => [...prev, aiPayload])
 
-      if (data.progressApplied && data.subtaskId != null && typeof data.progress === 'number') {
+      if (data.progressApplied && typeof data.subtaskId === 'string' && typeof data.progress === 'number') {
         onSubtaskProgress(data.subtaskId, data.progress, data.progress >= 100)
       }
-      if (data.subtaskRemoved === true && data.subtaskId != null) {
+      if (data.subtaskRemoved === true && typeof data.subtaskId === 'string') {
         onSubtaskRemoved?.(data.subtaskId)
       }
       if (data.memoSaved === true) {
@@ -294,8 +344,11 @@ export function ChatMessageList({
           ) : (
             <div key={i} className="flex w-full flex-col items-start gap-1.5">
               <p style={{ ...textAi, maxWidth: aiMax }}>{m.text}</p>
-              {m.pendingDelete && (
-                <div className="flex flex-wrap gap-2">
+              {m.pendingDelete ? (
+                <div
+                  className="flex shrink-0 flex-wrap gap-2 pt-0.5"
+                  data-pending-delete={m.pendingDelete.targetSubtaskId}
+                >
                   <button
                     type="button"
                     disabled={api.isLoading}
@@ -315,7 +368,7 @@ export function ChatMessageList({
                     취소
                   </button>
                 </div>
-              )}
+              ) : null}
             </div>
           ),
         )}
@@ -342,8 +395,11 @@ export function ChatMessageList({
         ) : (
           <div key={i} className="flex flex-col items-start gap-1.5">
             <p style={{ ...textAi, maxWidth: aiMax }}>{m.text}</p>
-            {m.pendingDelete && (
-              <div className="flex flex-wrap gap-2">
+            {m.pendingDelete ? (
+              <div
+                className="flex shrink-0 flex-wrap gap-2 pt-0.5"
+                data-pending-delete={m.pendingDelete.targetSubtaskId}
+              >
                 <button
                   type="button"
                   disabled={api.isLoading}
@@ -363,7 +419,7 @@ export function ChatMessageList({
                   취소
                 </button>
               </div>
-            )}
+            ) : null}
           </div>
         ),
       )}
