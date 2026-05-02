@@ -444,6 +444,9 @@ export default function DashboardClient({
           selectedCardId={selectedCardId}
           onSelectCard={setSelectedCardId}
           notesRefreshKey={notesRefreshKey}
+          setSubtasks={setSubtasks}
+          folders={folders}
+          moveCardToDoneFolder={moveCardToDoneFolder}
         />
       </div>
     </main>

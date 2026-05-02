@@ -105,6 +105,7 @@ interface CardDetailViewProps {
   onDelete: (cardId: string) => void
   /** chat-progress memo 저장 시 증가 → 메모 목록 갱신 */
   notesRefreshKey?: number
+  onSubtaskToggle?: (subtaskId: string, done: boolean) => void
 }
 
 function formatNoteDateMobile(iso: string): string {
@@ -120,6 +121,7 @@ export function CardDetailView({
   onDueDateChange,
   onDelete,
   notesRefreshKey = 0,
+  onSubtaskToggle,
 }: CardDetailViewProps) {
   const [memoMode, setMemoMode] = useState(false)
   const [notes, setNotes] = useState<Note[]>([])
@@ -305,9 +307,8 @@ export function CardDetailView({
                   <input
                     type="checkbox"
                     checked={done}
-                    readOnly
-                    disabled
-                    className="mt-1 h-3.5 w-3.5 shrink-0 cursor-default rounded border-gray-300 opacity-80"
+                    onChange={() => onSubtaskToggle?.(st.id, !done)}
+                    className="mt-1 h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-gray-300 opacity-80"
                     aria-label={done ? '완료' : '미완료'}
                   />
                   <div className="min-w-0 flex-1">

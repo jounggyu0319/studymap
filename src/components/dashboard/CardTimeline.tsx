@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useCallback, type Dispatch, type SetStateAction } from 'react'
+import type { Folder } from '@/types/card'
 import { remainingDays } from '@/lib/priority'
 import { CardListRow, CardDetailView, type Card, type Subtask } from './CardItem'
 
@@ -24,6 +25,10 @@ interface CardTimelineProps {
   selectedCardId: string | null
   onSelectCard: (id: string | null) => void
   notesRefreshKey?: number
+  /** 서브태스크 체크 — 낙관적 업데이트 + PATCH /api/subtasks/[id] */
+  setSubtasks?: Dispatch<SetStateAction<Subtask[]>>
+  folders?: Folder[]
+  moveCardToDoneFolder?: (cardId: string) => Promise<void>
 }
 
 function filterCardsByTimeTab(cards: Card[], tab: TimeFilterTab): Card[] {
@@ -44,6 +49,9 @@ export default function CardTimeline({
   selectedCardId,
   onSelectCard,
   notesRefreshKey = 0,
+  setSubtasks,
+  folders,
+  moveCardToDoneFolder,
 }: CardTimelineProps) {
   const tabCards = useMemo(() => filterCardsByTimeTab(cards, timeTab), [cards, timeTab])
 
@@ -67,6 +75,56 @@ export default function CardTimeline({
     onDelete(cardId)
     onSelectCard(null)
   }
+
+  const handleSubtaskToggle = useCallback(
+    async (subtaskId: string, done: boolean) => {
+      if (!setSubtasks) return
+      const progress = done ? 100 : 0
+      const prev = subtasks.find(s => s.id === subtaskId)
+      if (!prev) return
+
+      const optimisticNext = subtasks.map(s =>
+        s.id === subtaskId
+          ? { ...s, progress, isDone: done || progress >= 100 }
+          : s,
+      )
+
+      setSubtasks(prevList =>
+        prevList.map(s =>
+          s.id === subtaskId ? { ...s, progress, isDone: done || progress >= 100 } : s,
+        ),
+      )
+
+      try {
+        const res = await fetch(`/api/subtasks/${encodeURIComponent(subtaskId)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ progress, is_done: done }),
+        })
+        if (!res.ok) throw new Error('patch failed')
+
+        if (done && folders && cards && moveCardToDoneFolder) {
+          const cardSubs = optimisticNext.filter(s => s.cardId === prev.cardId)
+          const allDone =
+            cardSubs.length > 0 && cardSubs.every(s => (s.progress ?? 0) >= 100)
+          if (allDone) {
+            const card = cards.find(c => c.id === prev.cardId)
+            const doneFolder = folders.find(f => f.name === '✅ 완료')
+            if (card && card.folderId !== doneFolder?.id) {
+              void moveCardToDoneFolder(prev.cardId)
+            }
+          }
+        }
+      } catch {
+        setSubtasks(cur =>
+          cur.map(s =>
+            s.id === subtaskId ? { ...s, progress: prev.progress, isDone: prev.isDone } : s,
+          ),
+        )
+      }
+    },
+    [setSubtasks, subtasks, folders, cards, moveCardToDoneFolder],
+  )
 
   if (sortedCards.length === 0 && !detailOpen) {
     return (
@@ -98,6 +156,7 @@ export default function CardTimeline({
         onDueDateChange={onDueDateChange}
         onDelete={handleDeleteDetail}
         notesRefreshKey={notesRefreshKey}
+        onSubtaskToggle={setSubtasks ? handleSubtaskToggle : undefined}
       />
     ) : (
       <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50/50 px-3 py-6 text-center text-sm text-gray-400">
