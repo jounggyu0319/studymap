@@ -28,32 +28,38 @@
 
 ---
 
-### CHAT-04 · 맥락이 명확한데 과도한 재확인 요청 🟡
+### CHAT-04 · 맥락이 명확한데 과도한 재확인 요청 🔴 (후순위)
 **발생 상황:**  
 - "재료역학 9주차 복구해" → "새로 추가냐 복구냐?" 재확인  
 - "복구야" → "진행률도 말씀해 주세요" 재확인  
 - "0%야" → 그제야 실행 (3턴 소요)  
-**원인:** 직전 assistant 턴에서 "삭제했습니다"라고 이미 응답했음에도 맥락을 활용하지 않음.  
-**해결 방향:** SYSTEM_PROMPT에서 히스토리의 assistant 턴을 활용해 맥락이 명확한 경우 askClarification 최소화. "복구"는 진행률 미언급 시 0%로 기본 처리.  
-**구현:** lastDeletedSubtask 추적 + SYSTEM_PROMPT 복구 섹션 추가 (커밋 미완, 실사용 검증 필요)
+- "2일차 삭제 복구해" → "어떤 카드에 어떤 내용을 추가할까요?" (실사용 테스트 2026-05-03, 미해결 확인)  
+**원인:** lastDeletedSubtask가 Haiku 컨텍스트에 전달되나 복구 의도 매칭 실패 추정.  
+**구현:** 커밋 7cc0222 (ChatProgress.tsx + route.ts) — 실사용 미통과.  
+**결정:** 복구 기능 후순위 보류. 추가 디버깅 시점 미정.
 
 ---
 
-### CHAT-05 · 히스토리 맥락 미활용 🟡
+### CHAT-05 · 히스토리 맥락 미활용 🔴 (후순위, CHAT-04와 동일 원인)
 **발생 상황:** Haiku가 방금 전 "재료역학 9주차를 삭제했습니다"라고 답했는데, 다음 턴에서 삭제된 항목의 내용을 다시 물어봄.  
-**원인:** assistant 이전 턴에 삭제한 서브태스크 이름이 명시되어 있는데 carry-forward가 안 됨.  
-**해결 방향:** 삭제 응답 턴에 삭제된 항목 정보(`lastDeletedSubtask`)를 히스토리 메타에 포함. 복구 요청 시 이 정보를 우선 사용.  
-**구현:** ChatProgress.tsx + route.ts 수정 완료 (커밋 미완, 실사용 검증 필요)
+**원인:** lastDeletedSubtask 전달은 구현됐으나 Haiku 매칭 실패.  
+**구현:** 커밋 7cc0222 — 실사용 미통과.  
+**결정:** CHAT-04와 묶어 후순위 보류.
 
 ---
 
-### CHAT-06 · 여러 서브태스크 동시 조작 미지원 🔴
+### CHAT-06 · 여러 서브태스크 동시 조작 미지원 ✅
 **발생 상황:**
 - "3번까지 했어", "1~5번 다 봤어" → 여러 서브태스크 진척 일괄 업데이트 불가
 - "9주차 과제 삭제해 2개 다" → 1개만 삭제됨 (실제 확인된 사례)
 
-**원인:** SYSTEM_PROMPT와 TypeScript 처리 모두 단일 서브태스크 조작만 지원. progressUpdate·remove_subtask 모두 단일 타깃 구조.  
-**해결 방향:** Haiku 응답에 `targets: [{subtaskId, progress}]` 배열 형태 추가. TypeScript에서 배열 순회 후 순차 PATCH/DELETE 실행. pendingDelete도 targets 배열로 확장 필요.
+**해결:** 채팅 다건 처리(Haiku 신뢰성 리스크 높음) 대신 **체크박스 직접 클릭**으로 대체.
+- 미완료 클릭 → progress 100, is_done true
+- 완료 클릭 → progress 0, is_done false (토글)
+- 낙관적 업데이트 + PATCH `/api/subtasks/[id]` + 실패 시 롤백
+- 신규: `src/app/api/subtasks/[id]/route.ts` (PATCH)
+- 수정: `CardItem.tsx`, `CardTimeline.tsx`, `DashboardClient.tsx`
+- 실사용 테스트 통과.
 
 ---
 
@@ -78,11 +84,8 @@
 
 ---
 
-### FEAT-02 · 삭제 실행취소(undo) 없음 🔴
-**발생 상황:** 서브태스크 삭제 후 복구 요청 시 Haiku가 재확인만 반복. 사용자가 내용을 직접 다시 불러줘야 복구됨.  
-**원인:** DELETE는 즉시 실행, 복구 API 없음.  
-**해결 방향 A:** 삭제 전 soft delete(`deleted_at` 컬럼) 처리 후 일정 시간 후 실제 삭제.  
-**해결 방향 B:** 삭제 직후 클라이언트 측 undo 버튼 (5초 타임아웃).
+### FEAT-02 · 삭제 실행취소(undo) 없음 ❌ (기각)
+**사유:** pendingDelete 확인 게이트가 이미 존재해 실수 삭제 가능성 낮음. 구현 비용 대비 효용 부족으로 사용자 결정에 의해 기각.
 
 ---
 
@@ -95,5 +98,5 @@
 | 2026-05-03 | pendingDelete 버그 | remove_subtask confidence threshold 제거 → 항상 pendingDelete 게이트 통과. Haiku message 무시, TypeScript 고정 문구 사용 (커밋 b4a7483) |
 | 2026-05-03 | pendingDelete 버튼 렌더링 버그 | data.pendingDelete === true 엄격 체크 → parsePendingDeletePayload()로 느슨한 정규화. 모바일 채팅 높이 min(42vh,260px)로 확대 (커밋 71b4d03) |
 | 2026-05-03 | FEAT-01 | POST /api/subtasks 신규 구현 + chat-progress add_subtask 분기 추가 (커밋 76c0bf3). UI 자동 반영 핸들러는 잔여 과제. |
-| 2026-05-03 | CHAT-06 | "9주차 과제 삭제해 2개 다" → 1개만 삭제됨. 발생 상황 실사례 추가, 제목을 "동시 조작"으로 확장 (업데이트·삭제 모두 해당). |
+| 2026-05-03 | CHAT-06 | 체크박스 직접 클릭으로 대체 해결. PATCH /api/subtasks/[id] 신규, CardItem·CardTimeline·DashboardClient 수정. 실사용 테스트 통과. |
 | 2026-05-03 | CHAT-04/05 | lastDeletedSubtask state 추적 (ChatProgress.tsx) + API carry-forward (route.ts) + SYSTEM_PROMPT 복구 섹션 추가. tsc 통과. 커밋 7cc0222. 실사용 검증 미완. |
