@@ -51,6 +51,14 @@ targetCardId / targetSubtaskId를 현재 맥락으로 이어받아라.
 "삭제해줘", "없애줘", "빼줘" 등 서브태스크 제거 의도 → action: "remove_subtask"
 (remove_subtask일 때 targetSubtaskId는 candidatesForDelete에 포함된 id만 사용)
 
+## 서브태스크 추가
+사용자가 새 할 일을 추가하거나, 이전에 삭제된 항목을 복구하려는 경우 → action: "add_subtask"
+예: "9주차 과제 추가해", "복구해", "되돌려", "다시 넣어줘"
+이때 응답 JSON에 포함:
+- targetCardId: 추가할 카드 id (candidatesForProgress에서 매칭)
+- newSubtaskTitle: 추가할 서브태스크 제목 (사용자 문구 그대로 또는 복구 시 원래 제목)
+- progress: 진행률 (미언급 시 0)
+
 ## 메모 저장
 사용자가 나중에 다시 보고 싶은 정보만 남기려는 경우 → action: "memo"
 예: "메모해줘", "저장해줘", "기억해줘", 강의·자료 요약, 시험 범위, 나중에 참고할 팁 등.
@@ -95,6 +103,7 @@ type HaikuResponse = {
   confidence?: number
   message?: string
   memoContent?: string
+  newSubtaskTitle?: string
 }
 
 function parseHistory(raw: unknown): HistoryTurn[] {
@@ -441,6 +450,60 @@ export async function POST(request: NextRequest) {
 
     if (action === 'remove_subtask' && targetSubtaskId && !deleteAllowedIds.has(targetSubtaskId)) {
       targetSubtaskId = null
+    }
+
+    if (action === 'add_subtask') {
+      const cardId = targetCardId ?? activeCardId
+      const title = typeof parsed.newSubtaskTitle === 'string' ? parsed.newSubtaskTitle.trim() : null
+
+      if (!cardId || !title) {
+        return NextResponse.json({
+          matched: false,
+          progressApplied: false,
+          message: '어떤 카드에 어떤 내용을 추가할까요?',
+        })
+      }
+
+      const { data: cardRow } = await supabase
+        .from('cards')
+        .select('id')
+        .eq('id', cardId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (!cardRow) {
+        return NextResponse.json({
+          matched: false,
+          progressApplied: false,
+          message: '카드를 찾을 수 없어요.',
+        })
+      }
+
+      const progress =
+        typeof parsed.progress === 'number' && !Number.isNaN(parsed.progress)
+          ? clampProgress(parsed.progress)
+          : 0
+
+      const { error: insErr } = await supabase.from('subtasks').insert({
+        card_id: cardId,
+        title,
+        progress,
+        is_done: progress >= 100,
+        order_index: 999,
+        weight: 1,
+      })
+
+      if (insErr) {
+        return NextResponse.json({ error: '서브태스크를 추가하지 못했어요.' }, { status: 500 })
+      }
+
+      return NextResponse.json({
+        matched: true,
+        progressApplied: true,
+        subtaskAdded: true,
+        cardId,
+        message: parsed.message ?? `"${title}" 서브태스크를 추가했습니다.`,
+      })
     }
 
     if (action === 'remove_subtask') {
