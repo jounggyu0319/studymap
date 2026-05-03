@@ -25,7 +25,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "한눈",
     description: "AI가 한눈에 관리해주는 할 일",
-    url: "https://studymap-kohl.vercel.app",
+    url: "https://hanun.vercel.app",
     siteName: "한눈",
   },
 };
