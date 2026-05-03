@@ -34,6 +34,12 @@ export default function Header({ user }: { user: User }) {
     return () => document.removeEventListener('mousedown', onMouseDown)
   }, [menuOpen])
 
+  useEffect(() => {
+    if (localStorage.getItem('hasSeenManual') == null) {
+      setIsManualOpen(true)
+    }
+  }, [])
+
   return (
     <>
       <header className="flex h-14 items-center justify-between border-b border-[#e5e7eb] bg-white px-6">
@@ -93,7 +99,13 @@ export default function Header({ user }: { user: User }) {
           </div>
         </div>
       </header>
-      <ManualModal open={isManualOpen} onClose={() => setIsManualOpen(false)} />
+      <ManualModal
+        open={isManualOpen}
+        onClose={() => {
+          localStorage.setItem('hasSeenManual', 'true')
+          setIsManualOpen(false)
+        }}
+      />
     </>
   )
 }
