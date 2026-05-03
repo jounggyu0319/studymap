@@ -46,13 +46,11 @@ export function subtaskDoneFraction(s: Subtask): number {
   return Math.min(100, Math.max(0, p)) / 100
 }
 
-// 진척도: Σ(weight × progress%) / Σ(weight) → 0~100
+// 진척도: 완료 서브태스크 수 / 전체 서브태스크 수 (균등 가중치)
 export function calcProgress(subtasks: Subtask[]): number {
   if (subtasks.length === 0) return 0
-  const total = subtasks.reduce((sum, s) => sum + s.weight, 0)
-  if (total <= 0) return 0
-  const acc = subtasks.reduce((sum, s) => sum + s.weight * subtaskDoneFraction(s), 0)
-  return Math.round((acc / total) * 100)
+  const acc = subtasks.reduce((sum, s) => sum + subtaskDoneFraction(s), 0)
+  return Math.round((acc / subtasks.length) * 100)
 }
 
 export interface Note {
