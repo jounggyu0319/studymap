@@ -349,6 +349,27 @@ const textAi: CSSProperties = {
   color: '#6b7280',
 }
 
+/** Typing-style loader: three dots in a soft bubble */
+function BounceDotBubble({ className }: { className?: string }) {
+  const bubbleStyle: CSSProperties = {
+    background: '#f3f4f6',
+    borderRadius: '12px 12px 12px 2px',
+    padding: '8px 14px',
+    display: 'flex',
+    gap: 5,
+    alignItems: 'center',
+  }
+  const dotClass =
+    'inline-block h-2 w-2 rounded-full bg-gray-400 [animation-duration:0.6s] animate-bounce'
+  return (
+    <div className={className} style={bubbleStyle}>
+      <span className={dotClass} style={{ animationDelay: '0ms' }} />
+      <span className={dotClass} style={{ animationDelay: '120ms' }} />
+      <span className={dotClass} style={{ animationDelay: '240ms' }} />
+    </div>
+  )
+}
+
 export function ChatMessageList({
   api,
   variant,
@@ -415,9 +436,7 @@ export function ChatMessageList({
         )}
         {isLoading && (
           <div className="flex w-full justify-start">
-            <p style={{ ...textAi, maxWidth: aiMax }}>
-              분석 중<span className="animate-pulse">···</span>
-            </p>
+            <BounceDotBubble />
           </div>
         )}
         <div ref={api.bottomRef} style={{ height: 1 }} />
@@ -469,9 +488,7 @@ export function ChatMessageList({
       )}
       {isLoading && (
         <div className="flex justify-start">
-          <p style={{ ...textAi, maxWidth: aiMax }}>
-            분석 중<span className="animate-pulse">···</span>
-          </p>
+          <BounceDotBubble />
         </div>
       )}
       <div ref={api.bottomRef} style={{ height: 1 }} />
@@ -504,21 +521,15 @@ export function ChatInputRowMobile({ api }: { api: ChatProgressApi }) {
           colorScheme: 'light',
         }}
       />
-      {isLoading ? (
-        <span className="text-[12px] text-gray-400 animate-pulse" style={{ flexShrink: 0 }}>
-          처리 중
-        </span>
-      ) : (
-        <button
-          type="button"
-          onClick={() => void send()}
-          disabled={!input.trim() || isLoading}
-          className="text-sm font-medium transition-colors hover:opacity-80 disabled:opacity-30"
-          style={{ flexShrink: 0, color: '#374151', colorScheme: 'light' }}
-        >
-          전송
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={() => void send()}
+        disabled={!input.trim() || isLoading}
+        className="text-sm font-medium transition-colors hover:opacity-80 disabled:opacity-30"
+        style={{ flexShrink: 0, color: '#374151', colorScheme: 'light' }}
+      >
+        전송
+      </button>
     </div>
   )
 }
@@ -548,21 +559,15 @@ export function ChatInputRowDesktop({ api }: { api: ChatProgressApi }) {
           colorScheme: 'light',
         }}
       />
-      {isLoading ? (
-        <span className="text-[12px] text-gray-400 animate-pulse" style={{ flexShrink: 0 }}>
-          처리 중
-        </span>
-      ) : (
-        <button
-          type="button"
-          onClick={() => void send()}
-          disabled={!input.trim() || isLoading}
-          className="text-sm font-medium transition-colors hover:opacity-80 disabled:opacity-30"
-          style={{ flexShrink: 0, color: '#374151', colorScheme: 'light' }}
-        >
-          전송
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={() => void send()}
+        disabled={!input.trim() || isLoading}
+        className="text-sm font-medium transition-colors hover:opacity-80 disabled:opacity-30"
+        style={{ flexShrink: 0, color: '#374151', colorScheme: 'light' }}
+      >
+        전송
+      </button>
     </div>
   )
 }
@@ -696,6 +701,7 @@ export function DesktopProgressSidebar({
                 </div>
               ))
             )}
+            {api.isLoading && <BounceDotBubble className="self-start" />}
           </div>
         )}
         <ChatInputRowDesktop api={api} />
