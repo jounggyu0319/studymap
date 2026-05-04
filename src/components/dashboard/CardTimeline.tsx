@@ -142,6 +142,7 @@ export default function CardTimeline({
           card={card}
           subtasks={subtasks.filter(s => s.cardId === card.id)}
           onClick={() => onSelectCard(card.id)}
+          onDelete={handleDeleteDetail}
         />
       ))}
     </section>

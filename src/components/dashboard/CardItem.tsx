@@ -46,9 +46,10 @@ interface CardListRowProps {
   card: Card
   subtasks: Subtask[]
   onClick: () => void
+  onDelete?: (cardId: string) => void
 }
 
-export function CardListRow({ card, subtasks, onClick }: CardListRowProps) {
+export function CardListRow({ card, subtasks, onClick, onDelete }: CardListRowProps) {
   const dueDate = card.dueDate ?? (card as unknown as Record<string, unknown>).due_date as string | null ?? null
   const sorted = useMemo(
     () => [...subtasks].sort((a, b) => a.orderIndex - b.orderIndex),
@@ -60,40 +61,55 @@ export function CardListRow({ card, subtasks, onClick }: CardListRowProps) {
     sorted.length === 0 ? '서브태스크 없음' : nextTodo ? nextTodo.title : '완료 🎉'
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex w-full items-center gap-3 rounded-lg border border-gray-200 bg-white py-2 pl-0 pr-3 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50/80"
-    >
-      <div
-        className={`min-h-[2.25rem] w-[3px] shrink-0 self-stretch rounded-full ${getListAccentBarClass(card)}`}
-        aria-hidden
-      />
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-          <span className="shrink-0 text-[10px] font-medium text-gray-500">{card.subject}</span>
-          <span className="min-w-0 truncate text-sm font-semibold text-gray-900">{card.title}</span>
+    <div className="group relative flex w-full items-center rounded-lg border border-gray-200 bg-white shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50/80">
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex min-w-0 flex-1 items-center gap-3 py-2 pl-0 pr-2 text-left"
+      >
+        <div
+          className={`min-h-[2.25rem] w-[3px] shrink-0 self-stretch rounded-full ${getListAccentBarClass(card)}`}
+          aria-hidden
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+            <span className="shrink-0 text-[10px] font-medium text-gray-500">{card.subject}</span>
+            <span className="min-w-0 truncate text-sm font-semibold text-gray-900">{card.title}</span>
+          </div>
+          <p className="mt-0.5 truncate text-[11px] text-gray-500">{nextLine}</p>
         </div>
-        <p className="mt-0.5 truncate text-[11px] text-gray-500">{nextLine}</p>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <span className="w-12 text-right text-[11px] font-semibold tabular-nums text-gray-700">
-          {getDdayLabel(dueDate)}
-        </span>
-        <div className="h-1.5 w-14 overflow-hidden rounded-full bg-gray-100">
-          <div
-            className={`h-full rounded-full ${getProgressColor(progress)}`}
-            style={{ width: `${progress}%` }}
-          />
+        <div className="flex shrink-0 items-center gap-2 pr-1">
+          <span className="w-12 text-right text-[11px] font-semibold tabular-nums text-gray-700">
+            {getDdayLabel(dueDate)}
+          </span>
+          <div className="h-1.5 w-14 overflow-hidden rounded-full bg-gray-100">
+            <div
+              className={`h-full rounded-full ${getProgressColor(progress)}`}
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <span className="w-7 text-right text-[11px] font-semibold tabular-nums text-gray-600">
+            {progress}%
+          </span>
+          <span className="text-gray-400" aria-hidden>
+            ›
+          </span>
         </div>
-        <span className="w-7 text-right text-[11px] font-semibold tabular-nums text-gray-600">
-          {progress}%
-        </span>
-        <span className="text-gray-400" aria-hidden>
-          ›
-        </span>
-      </div>
-    </button>
+      </button>
+      {onDelete && (
+        <button
+          type="button"
+          onClick={e => {
+            e.stopPropagation()
+            onDelete(card.id)
+          }}
+          className="mr-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-gray-300 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
+          aria-label="카드 삭제"
+        >
+          ✕
+        </button>
+      )}
+    </div>
   )
 }
 

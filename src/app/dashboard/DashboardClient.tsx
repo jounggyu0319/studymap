@@ -217,6 +217,14 @@ export default function DashboardClient({
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [])
 
+  // 튜토리얼 카드 시딩 (첫 가입 사용자, 1회)
+  useEffect(() => {
+    fetch('/api/seed-tutorial', { method: 'POST' })
+      .then(r => r.json())
+      .then(({ seeded }) => { if (seeded) void refreshData() })
+      .catch(() => {})
+  }, [])
+
   const scopedSubtasks = useMemo(() => {
     const ids = new Set(filteredCards.map(c => c.id))
     return subtasks.filter(s => ids.has(s.cardId))
