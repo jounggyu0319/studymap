@@ -51,6 +51,7 @@ export interface ChatProgressApi {
   phIndex: number
   inputRef: RefObject<HTMLInputElement | null>
   scrollRef: RefObject<HTMLDivElement | null>
+  bottomRef: RefObject<HTMLDivElement | null>
   confirmPendingDelete: (messageIndex: number, targetSubtaskId: string) => Promise<void>
   cancelPendingDelete: (messageIndex: number) => void
 }
@@ -121,6 +122,7 @@ export function useChatProgress({
   const [phIndex, setPhIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -136,8 +138,11 @@ export function useChatProgress({
   }, [hasMessages, onExpandedChange])
 
   useEffect(() => {
-    const el = scrollRef.current
-    if (el) el.scrollTop = el.scrollHeight
+    if (!isLoading) inputRef.current?.focus()
+  }, [isLoading])
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: 'end' })
   }, [messages, isLoading])
 
   const cancelPendingDelete = useCallback((messageIndex: number) => {
@@ -205,7 +210,6 @@ export function useChatProgress({
         setMessages(prev => [...prev, { role: 'ai', text: '오류가 발생했어요. 다시 시도해주세요.' }])
       } finally {
         setIsLoading(false)
-        inputRef.current?.focus()
       }
     },
     [activeCardId, isLoading, messages, onSubtaskRemoved, onSubtaskDeleted],
@@ -299,7 +303,6 @@ export function useChatProgress({
       setMessages(prev => [...prev, { role: 'ai', text: '오류가 발생했어요. 다시 시도해주세요.' }])
     } finally {
       setIsLoading(false)
-      inputRef.current?.focus()
     }
   }, [
     input,
@@ -323,6 +326,7 @@ export function useChatProgress({
     phIndex,
     inputRef,
     scrollRef,
+    bottomRef,
     confirmPendingDelete,
     cancelPendingDelete,
   }
@@ -411,9 +415,12 @@ export function ChatMessageList({
         )}
         {isLoading && (
           <div className="flex w-full justify-start">
-            <p style={{ ...textAi, maxWidth: aiMax }}>분석 중...</p>
+            <p style={{ ...textAi, maxWidth: aiMax }}>
+              분석 중<span className="animate-pulse">···</span>
+            </p>
           </div>
         )}
+        <div ref={api.bottomRef} style={{ height: 1 }} />
       </div>
     )
   }
@@ -462,9 +469,12 @@ export function ChatMessageList({
       )}
       {isLoading && (
         <div className="flex justify-start">
-          <p style={{ ...textAi, maxWidth: aiMax }}>분석 중...</p>
+          <p style={{ ...textAi, maxWidth: aiMax }}>
+            분석 중<span className="animate-pulse">···</span>
+          </p>
         </div>
       )}
+      <div ref={api.bottomRef} style={{ height: 1 }} />
     </div>
   )
 }
@@ -494,15 +504,21 @@ export function ChatInputRowMobile({ api }: { api: ChatProgressApi }) {
           colorScheme: 'light',
         }}
       />
-      <button
-        type="button"
-        onClick={() => void send()}
-        disabled={!input.trim() || isLoading}
-        className="text-sm font-medium transition-colors hover:opacity-80 disabled:opacity-30"
-        style={{ flexShrink: 0, color: '#374151', colorScheme: 'light' }}
-      >
-        전송
-      </button>
+      {isLoading ? (
+        <span className="text-[12px] text-gray-400 animate-pulse" style={{ flexShrink: 0 }}>
+          처리 중
+        </span>
+      ) : (
+        <button
+          type="button"
+          onClick={() => void send()}
+          disabled={!input.trim() || isLoading}
+          className="text-sm font-medium transition-colors hover:opacity-80 disabled:opacity-30"
+          style={{ flexShrink: 0, color: '#374151', colorScheme: 'light' }}
+        >
+          전송
+        </button>
+      )}
     </div>
   )
 }
@@ -532,15 +548,21 @@ export function ChatInputRowDesktop({ api }: { api: ChatProgressApi }) {
           colorScheme: 'light',
         }}
       />
-      <button
-        type="button"
-        onClick={() => void send()}
-        disabled={!input.trim() || isLoading}
-        className="text-[13px] font-medium text-gray-700 transition-colors hover:opacity-80 disabled:opacity-30"
-        style={{ fontWeight: 500 }}
-      >
-        전송
-      </button>
+      {isLoading ? (
+        <span className="text-[12px] text-gray-400 animate-pulse" style={{ flexShrink: 0 }}>
+          처리 중
+        </span>
+      ) : (
+        <button
+          type="button"
+          onClick={() => void send()}
+          disabled={!input.trim() || isLoading}
+          className="text-sm font-medium transition-colors hover:opacity-80 disabled:opacity-30"
+          style={{ flexShrink: 0, color: '#374151', colorScheme: 'light' }}
+        >
+          전송
+        </button>
+      )}
     </div>
   )
 }
