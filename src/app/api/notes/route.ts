@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     .from('notes')
     .select('*')
     .eq('card_id', cardId)
-    .order('created_at', { ascending: false })
+    .order('created_at', { ascending: true })
 
   if (error) {
     return NextResponse.json({ error: '메모를 불러오지 못했어요.' }, { status: 500 })
