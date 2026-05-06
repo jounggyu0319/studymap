@@ -60,8 +60,10 @@ export function CardListRow({ card, subtasks, onClick, onDelete }: CardListRowPr
   const nextLine =
     sorted.length === 0 ? '서브태스크 없음' : nextTodo ? nextTodo.title : '완료 🎉'
 
+  const isTutorial = card.subject === '한눈 가이드'
+
   return (
-    <div className="group relative flex w-full items-center rounded-lg border border-gray-200 bg-white shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50/80">
+    <div className={`group relative flex w-full items-center rounded-lg border shadow-sm transition-colors ${isTutorial ? 'border-blue-200 bg-blue-50 hover:border-blue-300 hover:bg-blue-100/60' : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50/80'}`}>
       <button
         type="button"
         onClick={onClick}
@@ -74,6 +76,9 @@ export function CardListRow({ card, subtasks, onClick, onDelete }: CardListRowPr
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
             <span className="shrink-0 text-[10px] font-medium text-gray-500">{card.subject}</span>
+            {isTutorial && (
+              <span className="shrink-0 rounded bg-blue-100 px-1.5 py-px text-[10px] font-medium text-blue-700">도움말</span>
+            )}
             <span className="min-w-0 truncate text-sm font-semibold text-gray-900">{card.title}</span>
           </div>
           <p className="mt-0.5 truncate text-[11px] text-gray-500">{nextLine}</p>
@@ -239,9 +244,13 @@ export function CardDetailView({
     )
   }
 
+  const isTutorial = card.subject === '한눈 가이드'
+
   return (
-    <div className="rounded-lg border border-gray-200 bg-white px-3 pt-3 pb-40 shadow-sm md:p-3">
-      <div className="mb-2 flex flex-wrap items-center gap-2 border-b border-gray-100 pb-2">
+    <div className={`rounded-lg border px-3 pt-3 pb-40 shadow-sm md:p-3 ${isTutorial ? 'border-blue-200 bg-blue-50' : 'border-gray-200 bg-white'}`}>
+      <div
+        className={`mb-2 flex flex-wrap items-center gap-2 border-b pb-2 ${isTutorial ? 'border-blue-100' : 'border-gray-100'}`}
+      >
         <button
           type="button"
           onClick={onBack}
@@ -252,10 +261,15 @@ export function CardDetailView({
         <span className="text-xs text-gray-300" aria-hidden>
           /
         </span>
-        <p className="min-w-0 flex-1 truncate text-xs text-gray-500">
+        <p className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-0.5 truncate text-xs text-gray-500">
           <span className="font-medium text-gray-700">{card.subject}</span>
+          {isTutorial && (
+            <span className="shrink-0 rounded bg-blue-100 px-1.5 py-px text-[10px] font-medium text-blue-700">
+              도움말
+            </span>
+          )}
           <span className="text-gray-400"> · </span>
-          <span>{card.title}</span>
+          <span className="min-w-0 truncate">{card.title}</span>
         </p>
       </div>
 
