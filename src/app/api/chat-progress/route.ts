@@ -89,6 +89,11 @@ lastDeletedSubtask 없이 "복구해" 단답만 오면:
 - 있으면 위와 동일하게 add_subtask 즉시 실행 (progress: 0)
 - 그래도 특정 불가면 askClarification
 
+## 다건 완료 요청 (여러 서브태스크 동시 완료)
+"~부터 ~까지", "전부", "모두", "다 했어", "다 완료", "전부 완료" 등으로 여러 서브태스크 완료를 한 번에 요청할 때:
+- activeCardId가 null(카드 미선택)이면 → action: "none", message: "카드를 먼저 클릭해서 열어줘! 어떤 카드인지 알아야 한꺼번에 완료 처리할 수 있어."
+- activeCardId가 있으면 → 현재는 단건 처리만 지원. 가장 먼저 언급된 서브태스크 1개만 progressUpdate로 처리하고, message에 "나머지는 체크박스로 직접 완료할 수 있어"라고 안내.
+
 ## add_subtask 진행률 기본값
 newSubtaskTitle만 있고 progress 미언급 → progress: 0 으로 고정. 진행률을 되묻지 말 것.
 `
@@ -352,6 +357,16 @@ export async function POST(request: NextRequest) {
     typeof body.activeCardId === 'string' && body.activeCardId.length > 0 ? body.activeCardId : null
 
   if (!message.trim()) return NextResponse.json({ error: '메시지를 입력해주세요.' }, { status: 400 })
+
+  // 다건 완료 패턴 감지: activeCardId 없으면 카드 선택 안내 즉시 반환 (Haiku 호출 불필요)
+  const isBulkPattern = /부터.{0,10}까지|전부\s*(완료|다\s*했|체크)|모두\s*(완료|다\s*했|체크)|다\s*완료|전부\s*다/.test(message)
+  if (isBulkPattern && !activeCardId) {
+    return NextResponse.json({
+      matched: false,
+      progressApplied: false,
+      message: '카드를 먼저 클릭해서 열어줘! 어떤 카드인지 알아야 한꺼번에 완료 처리할 수 있어.',
+    })
+  }
 
   const effectiveMessage = buildEffectiveUserMessage(message.trim(), history)
 
